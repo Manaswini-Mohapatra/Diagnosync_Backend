@@ -1,12 +1,18 @@
 const express = require('express');
 const appointmentController = require('../controllers/appointmentController');
-const { authMiddleware } = require('../middleware/authMiddleware');
+const { protect } = require('../middleware/authMiddleware');
 
 const router = express.Router();
 
-router.post('/', authMiddleware, appointmentController.createAppointment);
-router.get('/', authMiddleware, appointmentController.getAppointments);
-router.patch('/:id', authMiddleware, appointmentController.updateAppointment);
-router.delete('/:id', authMiddleware, appointmentController.deleteAppointment);
+// Apply protect middleware to all appointment routes
+router.use(protect);
+
+router.post('/', appointmentController.createAppointment);
+router.get('/', appointmentController.getAppointments);
+router.get('/:id', appointmentController.getAppointmentById);
+router.put('/:id', appointmentController.updateAppointment);
+router.patch('/:id/status', appointmentController.updateStatus);
+router.patch('/:id/reminder', appointmentController.sendReminder);
+router.delete('/:id', appointmentController.deleteAppointment);
 
 module.exports = router;

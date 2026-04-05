@@ -43,16 +43,25 @@ const stubRouter = (label) => {
   return router;
 };
 
-app.use('/api/appointments', stubRouter('Appointment'));
-app.use('/api/prescriptions', stubRouter('Prescription'));
+const appointmentRoutes = require('./routes/appointmentRoutes');
+app.use('/api/appointments', appointmentRoutes);
+const prescriptionRoutes = require('./routes/prescriptionRoutes');
+app.use('/api/prescriptions', prescriptionRoutes);
 app.use('/api/nlp', stubRouter('NLP'));
 app.use('/api/ml', stubRouter('ML'));
-app.use('/api/interactions', stubRouter('DrugInteraction'));
+const drugInteractionRoutes = require('./routes/drugInteractionRoutes');
+app.use('/api/interactions', drugInteractionRoutes);
 // /api/patients ─ live (Phase 3)
 // /api/doctors  ─ live (Phase 3)
-app.use('/api/treatments', stubRouter('Treatment'));
-app.use('/api/notifications', stubRouter('Notification'));
 
+const treatmentRoutes = require('./routes/treatmentRoutes');
+app.use('/api/treatments', treatmentRoutes);
+
+const notificationRoutes = require('./routes/notificationRoutes');
+app.use('/api/notifications', notificationRoutes);
+
+const healthMetricsRoutes = require('./routes/healthMetricsRoutes');
+app.use('/api/health-metrics', healthMetricsRoutes);
 // ── Health check ───────────────────────────────────────────────────────────
 app.get('/api/health', (req, res) => {
   res.json({
@@ -60,6 +69,13 @@ app.get('/api/health', (req, res) => {
     message: 'DiagnoSync server is running',
     timestamp: new Date(),
     environment: process.env.NODE_ENV || 'development'
+  });
+});
+
+
+app.get('/api', (req, res) => {
+  res.json({
+    message: "Diagnosync API is running 🚀"
   });
 });
 

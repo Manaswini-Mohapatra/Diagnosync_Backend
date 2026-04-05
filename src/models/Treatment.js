@@ -6,6 +6,15 @@ const treatmentSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
+  // Added for doctor validation
+  doctorId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
+  isVerified: {
+    type: Boolean,
+    default: false
+  },
   condition: {
     type: String,
     required: true
@@ -19,11 +28,22 @@ const treatmentSchema = new mongoose.Schema({
     min: 0,
     max: 1
   },
+  // Updated Enum to match the frontend string exactly if needed
   severity: {
     type: String,
-    enum: ['mild', 'moderate', 'severe']
+    enum: ['low', 'mild', 'moderate', 'severe'],
+    default: 'low'
   },
   symptoms: [String],
+  
+  // Custom plan blocks for frontend cards
+  recommendations: [{
+    title: String,       // e.g. "Rest", "Fluids", "Medication"
+    description: String, // e.g. "7-10 days of adequate rest"
+    iconType: String     // optional mapping for frontend icons
+  }],
+
+  // Legacy/Detailed medication table data
   medications: [
     {
       name: String,

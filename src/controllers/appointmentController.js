@@ -1,6 +1,7 @@
 const Appointment = require('../models/Appointment');
 const User        = require('../models/User');
 const Doctor      = require('../models/Doctor');
+const { createSystemNotification } = require('./notificationController');
 
 // ── Helper: format appointment for response ────────────────────────────────
 // Populates patient and doctor info inline so frontend gets everything in one call
@@ -81,6 +82,23 @@ exports.createAppointment = async (req, res, next) => {
     });
 
     const formatted = formatAppointment(appointment, req.user, doctorUser);
+
+    // Notify Patient via the system
+    await createSystemNotification({
+      userId: req.user._id,
+      type: 'appointment',
+      title: 'Appointment Confirmed',
+      message: `Your appointment with Dr. ${doctorUser.name} has been successfully scheduled for ${appointment.date.toLocaleDateString()} at ${appointment.time}.`
+    });
+
+    // Notify Doctor via the system
+    await createSystemNotification({
+      userId: doctorId,
+      type: 'appointment',
+      title: 'New Appointment Booked',
+      message: `A new appointment has been booked by ${req.user.name} for ${appointment.date.toLocaleDateString()} at ${appointment.time}.`
+    });
+
     res.status(201).json({
       success: true,
       message: 'Appointment booked successfully',
@@ -241,6 +259,15 @@ exports.updateStatus = async (req, res, next) => {
     apt.status = status;
     await apt.save();
 
+    // Notify the other party depending on who triggered the status update
+    const targetUserId = req.user.role === 'patient' ? apt.doctorId : apt.patientId;
+    await createSystemNotification({
+      userId: targetUserId,
+      type: 'appointment',
+      title: 'Appointment Status Changed',
+      message: `An appointment status was updated to ${status}.`
+    });
+
     res.status(200).json({
       success: true,
       message: `Appointment marked as ${status}`,
@@ -266,6 +293,15 @@ exports.sendReminder = async (req, res, next) => {
 
     apt.reminderSent = true;
     await apt.save();
+
+    // Trigger an urgent push/alert for the patient
+    await createSystemNotification({
+      userId: apt.patientId,
+      type: 'reminder',
+      priority: 'high',
+      title: 'Urgent: Appointment Reminder',
+      message: `Reminder: You have an upcoming appointment on ${apt.date.toLocaleDateString()}. Please ensure you are ready and check your dashboard for details.`
+    });
 
     // TODO: send actual email/SMS when email service is set up
     res.status(200).json({

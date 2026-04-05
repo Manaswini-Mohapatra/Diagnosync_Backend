@@ -1,11 +1,22 @@
 const express = require('express');
 const prescriptionController = require('../controllers/prescriptionController');
-const { authMiddleware } = require('../middleware/authMiddleware');
+const { protect, restrictTo } = require('../middleware/authMiddleware');
 
 const router = express.Router();
 
-router.post('/', authMiddleware, prescriptionController.createPrescription);
-router.get('/', authMiddleware, prescriptionController.getPrescriptions);
-router.post('/:id/refill', authMiddleware, prescriptionController.requestRefill);
+// All routes require authentication
+router.use(protect);
+
+// GET: All prescriptions (role-filtered in controller)
+router.get('/', prescriptionController.getPrescriptions);
+
+// POST: Create a new prescription (Doctors only)
+router.post('/', restrictTo('doctor', 'admin'), prescriptionController.createPrescription);
+
+// PATCH: Update status (e.g. active -> completed/discontinued) (Doctors only)
+router.patch('/:id/status', restrictTo('doctor', 'admin'), prescriptionController.updateStatus);
+
+// POST: Request a refill (Patients only)
+router.post('/:id/refill', restrictTo('patient'), prescriptionController.requestRefill);
 
 module.exports = router;

@@ -1,62 +1,49 @@
 const HealthMetrics = require('../models/HealthMetrics');
 
-// Create health metric record
-exports.createHealthMetric = async (req, res) => {
-  try {
-    const {
-      patientId,
-      bloodPressure,
-      heartRate,
-      temperature,
-      weight,
-      height,
-      bmi,
-      bloodSugar,
-      cholesterol,
-      oxygenSaturation,
-      respiratoryRate,
-      notes,
-      recordedBy,
-      deviceType
-    } = req.body;
+// ── Helpers ────────────────────────────────────────────────────────────────
+const verifyOwnership = (patientId, user) => {
+  if (user.role === 'admin' || user.role === 'doctor') return true;
+  return patientId.toString() === user._id.toString();
+};
 
-    const healthMetric = new HealthMetrics({
-      patientId,
-      bloodPressure,
-      heartRate,
-      temperature,
-      weight,
-      height,
-      bmi,
-      bloodSugar,
-      cholesterol,
-      oxygenSaturation,
-      respiratoryRate,
-      notes,
-      recordedBy,
-      deviceType,
+// ── POST /api/health-metrics ───────────────────────────────────────────────
+exports.createHealthMetric = async (req, res, next) => {
+  try {
+    const data = req.body;
+
+    // Security: If patient, force patientId to be their own ID
+    if (req.user.role === 'patient') {
+      data.patientId = req.user._id;
+      data.recordedBy = 'patient';
+    } else {
+      if (!data.patientId) return res.status(400).json({ success: false, error: 'Patient ID required' });
+      if (!data.recordedBy) data.recordedBy = req.user.role === 'doctor' ? 'doctor' : 'device';
+    }
+
+    const healthMetric = await HealthMetrics.create({
+      ...data,
       date: new Date()
     });
 
-    await healthMetric.save();
-
     res.status(201).json({
       success: true,
-      healthMetric
+      message: 'Health metric logged successfully',
+      data: healthMetric
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    next(error);
   }
 };
 
-// Get patient health metrics
-exports.getPatientMetrics = async (req, res) => {
+// ── GET /api/health-metrics/patient/:patientId ─────────────────────────────
+exports.getPatientMetrics = async (req, res, next) => {
   try {
     const { patientId } = req.params;
-    const { startDate, endDate } = req.query;
+    const { startDate, endDate, limit = 50 } = req.query;
+
+    if (!verifyOwnership(patientId, req.user)) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
 
     let filter = { patientId };
     
@@ -68,120 +55,131 @@ exports.getPatientMetrics = async (req, res) => {
     }
 
     const metrics = await HealthMetrics.find(filter)
-      .sort({ date: -1 });
+      .sort({ date: -1 })
+      .limit(Number(limit));
 
-    res.json({
+    res.status(200).json({
       success: true,
-      metrics
+      data: metrics
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    next(error);
   }
 };
 
-// Get latest health metric
-exports.getLatestMetric = async (req, res) => {
+// ── GET /api/health-metrics/patient/:patientId/latest ──────────────────────
+exports.getLatestMetric = async (req, res, next) => {
   try {
     const { patientId } = req.params;
 
-    const metric = await HealthMetrics.findOne({ patientId })
-      .sort({ date: -1 });
-
-    if (!metric) {
-      return res.status(404).json({
-        success: false,
-        error: 'No health metrics found'
-      });
+    if (!verifyOwnership(patientId, req.user)) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
     }
 
-    res.json({
+    const metric = await HealthMetrics.findOne({ patientId }).sort({ date: -1 });
+
+    if (!metric) {
+      return res.status(404).json({ success: false, error: 'No health metrics found' });
+    }
+
+    res.status(200).json({
       success: true,
-      metric
+      data: metric
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    next(error);
   }
 };
 
-// Update health metric
-exports.updateHealthMetric = async (req, res) => {
+// ── PATCH /api/health-metrics/:id ──────────────────────────────────────────
+exports.updateHealthMetric = async (req, res, next) => {
   try {
     const { id } = req.params;
     const updateData = req.body;
 
-    const metric = await HealthMetrics.findByIdAndUpdate(
+    const metric = await HealthMetrics.findById(id);
+    if (!metric) return res.status(404).json({ success: false, error: 'Health metric not found' });
+
+    if (!verifyOwnership(metric.patientId, req.user)) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+
+    const updated = await HealthMetrics.findByIdAndUpdate(
       id,
       { ...updateData, updatedAt: Date.now() },
-      { new: true }
+      { new: true, runValidators: true }
     );
 
-    res.json({
+    res.status(200).json({
       success: true,
-      metric
+      data: updated
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    next(error);
   }
 };
 
-// Delete health metric
-exports.deleteHealthMetric = async (req, res) => {
+// ── DELETE /api/health-metrics/:id ─────────────────────────────────────────
+exports.deleteHealthMetric = async (req, res, next) => {
   try {
     const { id } = req.params;
 
+    const metric = await HealthMetrics.findById(id);
+    if (!metric) return res.status(404).json({ success: false, error: 'Health metric not found' });
+
+    if (!verifyOwnership(metric.patientId, req.user)) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+
     await HealthMetrics.findByIdAndDelete(id);
 
-    res.json({
+    res.status(200).json({
       success: true,
-      message: 'Health metric deleted'
+      message: 'Health metric deleted successfully'
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    next(error);
   }
 };
 
-// Get health metrics summary
-exports.getMetricsSummary = async (req, res) => {
+// ── GET /api/health-metrics/patient/:patientId/summary ─────────────────────
+exports.getMetricsSummary = async (req, res, next) => {
   try {
     const { patientId } = req.params;
     const days = req.query.days || 30;
 
+    if (!verifyOwnership(patientId, req.user)) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+
     const startDate = new Date();
-    startDate.setDate(startDate.getDate() - days);
+    startDate.setDate(startDate.getDate() - parseInt(days));
 
     const metrics = await HealthMetrics.find({
       patientId,
       date: { $gte: startDate }
     }).sort({ date: 1 });
 
-    const summary = {
-      totalRecords: metrics.length,
-      averageHeartRate: metrics.reduce((sum, m) => sum + (m.heartRate || 0), 0) / metrics.length || 0,
-      averageTemperature: metrics.reduce((sum, m) => sum + (m.temperature || 0), 0) / metrics.length || 0,
-      averageWeight: metrics.reduce((sum, m) => sum + (m.weight || 0), 0) / metrics.length || 0,
-      latestMetric: metrics[metrics.length - 1]
+    const totalRecords = metrics.length;
+    let summary = {
+      totalRecords,
+      averageHeartRate: 0,
+      averageTemperature: 0,
+      averageWeight: 0,
+      latestMetric: totalRecords > 0 ? metrics[totalRecords - 1] : null
     };
 
-    res.json({
+    if (totalRecords > 0) {
+      summary.averageHeartRate = metrics.reduce((sum, m) => sum + (m.heartRate || 0), 0) / totalRecords;
+      summary.averageTemperature = metrics.reduce((sum, m) => sum + (m.temperature || 0), 0) / totalRecords;
+      summary.averageWeight = metrics.reduce((sum, m) => sum + (m.weight || 0), 0) / totalRecords;
+    }
+
+    res.status(200).json({
       success: true,
-      summary
+      data: summary
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    next(error);
   }
 };

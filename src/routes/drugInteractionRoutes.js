@@ -1,9 +1,12 @@
 const express = require('express');
 const drugInteractionController = require('../controllers/drugInteractionController');
-const { authMiddleware } = require('../middleware/authMiddleware');
+const { protect, restrictTo } = require('../middleware/authMiddleware');
 
 const router = express.Router();
 
-router.post('/check', authMiddleware, drugInteractionController.checkInteractions);
+router.use(protect);
+
+// Only doctors (and admins) should be able to check interactions
+router.post('/check', restrictTo('doctor', 'admin'), drugInteractionController.checkInteractions);
 
 module.exports = router;

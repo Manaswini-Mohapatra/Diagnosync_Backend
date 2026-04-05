@@ -1,39 +1,30 @@
-const DrugInteraction = require('../models/DrugInteraction');
+const { 
+  checkDrugInteractions, 
+  generateInteractionReport 
+} = require('../utils/drugInteractionChecker');
 
-exports.checkInteractions = async (req, res) => {
+exports.checkInteractions = async (req, res, next) => {
   try {
     const { drugs } = req.body;
 
-    // Check for interactions
-    const interactions = [];
-    
-    for (let i = 0; i < drugs.length; i++) {
-      for (let j = i + 1; j < drugs.length; j++) {
-        const interaction = await DrugInteraction.findOne({
-          $or: [
-            { drug1: drugs[i], drug2: drugs[j] },
-            { drug1: drugs[j], drug2: drugs[i] }
-          ]
-        });
-
-        if (interaction) {
-          interactions.push(interaction);
-        }
-      }
+    if (!drugs || !Array.isArray(drugs) || drugs.length < 2) {
+      return res.status(400).json({
+        success: false,
+        error: 'Please provide an array of at least 2 drugs to check for interactions.'
+      });
     }
 
-    const overallRisk = interactions.length > 0 ? 'warning' : 'safe';
+    // 1. Check interactions using utility
+    const interactions = await checkDrugInteractions(drugs);
 
-    res.json({
+    // 2. Generate comprehensive API response using utility
+    const report = generateInteractionReport(drugs, interactions);
+
+    res.status(200).json({
       success: true,
-      interactions,
-      overallRisk,
-      timestamp: new Date()
+      data: report
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    next(error);
   }
 };
