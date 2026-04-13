@@ -62,11 +62,21 @@ exports.forgotPasswordValidator = [
 ];
 
 exports.resetPasswordValidator = [
-  body('password')
-    .notEmpty().withMessage('Password is required')
+  body('token')
+    .notEmpty().withMessage('Reset token is required'),
+
+  // Accept either 'newPassword' (from frontend) or 'password' (legacy)
+  body('newPassword')
+    .optional()
     .isLength({ min: 8 }).withMessage('Password must be at least 8 characters')
     .matches(/[A-Z]/).withMessage('Password must contain at least one uppercase letter')
-    .matches(/[0-9]/).withMessage('Password must contain at least one number')
+    .matches(/[0-9]/).withMessage('Password must contain at least one number'),
+
+  body('password')
+    .optional()
+    .isLength({ min: 8 }).withMessage('Password must be at least 8 characters')
+    .matches(/[A-Z]/).withMessage('Password must contain at least one uppercase letter')
+    .matches(/[0-9]/).withMessage('Password must contain at least one number'),
 ];
 
 // ── User Update Validators ─────────────────────────────────────────────────

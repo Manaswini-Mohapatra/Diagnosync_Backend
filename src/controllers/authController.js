@@ -120,10 +120,13 @@ exports.forgotPassword = async (req, res, next) => {
     // Generate a short-lived reset token (1 hour)
     const resetToken = generateOtpToken({ id: user._id.toString(), purpose: 'reset' }, '1h');
 
-    // In production this URL would point to your frontend reset page
+    // Build the reset URL pointing to our frontend page
     const resetUrl = `${process.env.CORS_ORIGIN}/password-reset?token=${resetToken}`;
 
-    await sendPasswordResetEmail(email, resetUrl);
+    // Non-blocking — send via Mailtrap (dev) or real SMTP (production)
+    sendPasswordResetEmail(email, resetUrl).catch((err) =>
+      console.error('Failed to send reset email:', err.message)
+    );
 
     res.status(200).json({
       success: true,
@@ -137,10 +140,16 @@ exports.forgotPassword = async (req, res, next) => {
 // ── POST /api/auth/reset-password ─────────────────────────────────────────
 exports.resetPassword = async (req, res, next) => {
   try {
-    const { token, password } = req.body;
+    // Accept 'newPassword' (sent by frontend PasswordReset.jsx) or legacy 'password'
+    const { token, password, newPassword } = req.body;
+    const actualPassword = newPassword || password;
 
     if (!token) {
       return res.status(400).json({ success: false, error: 'Reset token is required' });
+    }
+
+    if (!actualPassword) {
+      return res.status(400).json({ success: false, error: 'New password is required' });
     }
 
     let decoded;
@@ -159,7 +168,7 @@ exports.resetPassword = async (req, res, next) => {
       return res.status(404).json({ success: false, error: 'User not found' });
     }
 
-    user.password = password;  // pre-save hook will hash it
+    user.password = actualPassword;  // pre-save hook will hash it
     user.updatedAt = Date.now();
     await user.save();
 
