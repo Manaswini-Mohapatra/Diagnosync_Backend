@@ -29,6 +29,8 @@ const formatDoctorForListing = (user, doctor) => ({
   consultationFee: doctor.consultationFee,
   yearsOfExperience: doctor.yearsOfExperience,
   hospitalAffiliation: doctor.hospitalAffiliation,
+  licenseNumber: doctor.licenseNumber,   // ← was missing — caused "Not specified" on profile page
+  licenseState:  doctor.licenseState,    // ← was missing — caused "Not specified" on profile page
   languages:  doctor.languages || [],
   qualifications: doctor.qualifications || [],
   bio:        doctor.bio,

@@ -53,6 +53,8 @@ const drugInteractionRoutes = require('./routes/drugInteractionRoutes');
 app.use('/api/interactions', drugInteractionRoutes);
 // /api/patients ─ live (Phase 3)
 // /api/doctors  ─ live (Phase 3)
+const medicationRoutes = require('./routes/medicationRoutes');
+app.use('/api/medications', medicationRoutes);
 
 const treatmentRoutes = require('./routes/treatmentRoutes');
 app.use('/api/treatments', treatmentRoutes);

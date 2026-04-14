@@ -259,13 +259,18 @@ exports.updateStatus = async (req, res, next) => {
     apt.status = status;
     await apt.save();
 
-    // Notify the other party depending on who triggered the status update
-    const targetUserId = req.user.role === 'patient' ? apt.doctorId : apt.patientId;
+    // Notify BOTH parties about the status update
     await createSystemNotification({
-      userId: targetUserId,
+      userId: apt.doctorId,
       type: 'appointment',
       title: 'Appointment Status Changed',
       message: `An appointment status was updated to ${status}.`
+    });
+    await createSystemNotification({
+      userId: apt.patientId,
+      type: 'appointment',
+      title: 'Appointment Status Changed',
+      message: `Your appointment status was updated to ${status}.`
     });
 
     res.status(200).json({
