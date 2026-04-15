@@ -56,7 +56,22 @@ const patientSchema = new mongoose.Schema({
 
   // ── Emergency contact ──────────────────────────────────────────────────────
   emergencyContact: String,
-  emergencyPhone: String
+  emergencyPhone: String,
+
+  // ── Calculated Health Score ────────────────────────────────────────────────
+  healthScore: {
+    score: { type: Number, default: 0 },
+    status: { type: String, enum: ['Good', 'Moderate', 'Critical', 'None'], default: 'None' },
+    bmi: { type: Number, default: 0 },
+    breakdown: {
+      bmiPenalty: { type: Number, default: 0 },
+      diseasePenalty: { type: Number, default: 0 },
+      allergyPenalty: { type: Number, default: 0 },
+      familyHistoryPenalty: { type: Number, default: 0 },
+      smokingPenalty: { type: Number, default: 0 },
+      exercisePenalty: { type: Number, default: 0 }
+    }
+  }
 
 }, {
   timestamps: true   // auto-manages createdAt + updatedAt

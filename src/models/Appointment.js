@@ -66,6 +66,13 @@ const appointmentSchema = new mongoose.Schema({
   reminderSent: {
     type: Boolean,
     default: false
+  },
+
+  // ── Patient Rating (after appointment is completed) ────────────────────
+  rating: {
+    score:   { type: Number, min: 1, max: 5, default: null },
+    comment: { type: String, default: '' },
+    ratedAt: { type: Date }
   }
 
 }, {

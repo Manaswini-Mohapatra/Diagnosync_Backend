@@ -7,6 +7,7 @@ const { createSystemNotification } = require('./notificationController');
 // Populates patient and doctor info inline so frontend gets everything in one call
 const formatAppointment = (apt, patientUser, doctorUser) => ({
   id:            apt._id,
+  _id:           apt._id,   // keep both so frontend can use either
   // Patient info (matches DoctorAppointmentsPage.jsx fields)
   patientId:     apt.patientId,
   patientName:   patientUser?.name  || 'Unknown',
@@ -14,6 +15,12 @@ const formatAppointment = (apt, patientUser, doctorUser) => ({
   patientPhone:  patientUser?.phone || '',
   // Doctor info (matches PatientDashboard / AppointmentBooking fields)
   doctorId:      apt.doctorId,
+  doctor: {
+    _id:            apt.doctorId,
+    name:           doctorUser?.name   || 'Unknown',
+    email:          doctorUser?.email  || '',
+    specialization: doctorUser?.specialization || 'Specialist'
+  },
   doctorName:    doctorUser?.name   || 'Unknown',
   doctorEmail:   doctorUser?.email  || '',
   // Schedule
@@ -26,6 +33,8 @@ const formatAppointment = (apt, patientUser, doctorUser) => ({
   notes:         apt.notes,
   status:        apt.status,
   reminderSent:  apt.reminderSent,
+  // Rating
+  rating:        apt.rating || null,
   createdAt:     apt.createdAt,
   updatedAt:     apt.updatedAt
 });
@@ -111,9 +120,10 @@ exports.createAppointment = async (req, res, next) => {
 
 // ── GET /api/appointments ──────────────────────────────────────────────────
 // Role-aware: patients see their own, doctors see their patients' appointments
+// Supports: ?status=scheduled  ?upcoming=true&hours=72  ?page=1&limit=50
 exports.getAppointments = async (req, res, next) => {
   try {
-    const { status, page = 1, limit = 20 } = req.query;
+    const { status, page = 1, limit = 50, upcoming, hours = 72 } = req.query;
     const filter = {};
 
     if (req.user.role === 'patient') {
@@ -125,8 +135,19 @@ exports.getAppointments = async (req, res, next) => {
 
     if (status) filter.status = status;
 
+    // ── Dashboard widget: ?upcoming=true&hours=72 ──
+    // Returns only appointments falling in the next N hours window
+    if (upcoming === 'true') {
+      const now = new Date();
+      const windowEnd = new Date(now.getTime() + Number(hours) * 60 * 60 * 1000);
+      filter.date = { $gte: now, $lte: windowEnd };
+      filter.status = { $in: ['scheduled', 'in-progress'] };
+    }
+
+    const sortOrder = upcoming === 'true' ? { date: 1, time: 1 } : { date: -1, time: 1 };
+
     const appointments = await Appointment.find(filter)
-      .sort({ date: -1, time: 1 })
+      .sort(sortOrder)
       .skip((page - 1) * limit)
       .limit(Number(limit));
 
@@ -346,6 +367,102 @@ exports.deleteAppointment = async (req, res, next) => {
     apt.status = 'cancelled';
     await apt.save();
     res.status(200).json({ success: true, message: 'Appointment cancelled', data: { id: apt._id, status: 'cancelled' } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ── PATCH /api/appointments/:id/rate ──────────────────────────────────────
+// Patient rates a completed appointment (1-5 stars + optional comment)
+exports.rateAppointment = async (req, res, next) => {
+  try {
+    const { score, comment = '' } = req.body;
+
+    if (!score || score < 1 || score > 5) {
+      return res.status(400).json({ success: false, error: 'score must be between 1 and 5' });
+    }
+
+    const apt = await Appointment.findById(req.params.id);
+    if (!apt) return res.status(404).json({ success: false, error: 'Appointment not found' });
+
+    // Only the patient who owns the appointment can rate it
+    if (apt.patientId.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+
+    // Can only rate completed appointments
+    if (apt.status !== 'completed') {
+      return res.status(400).json({ success: false, error: 'Only completed appointments can be rated' });
+    }
+
+    // Prevent re-rating
+    if (apt.rating?.score) {
+      return res.status(400).json({ success: false, error: 'You have already rated this appointment' });
+    }
+
+    apt.rating = { score: Number(score), comment, ratedAt: new Date() };
+    await apt.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Rating submitted successfully',
+      data: { id: apt._id, rating: apt.rating }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ── PATCH /api/appointments/:id/reschedule ────────────────────────────────
+// Patient picks a new date + time for a scheduled appointment
+exports.rescheduleAppointment = async (req, res, next) => {
+  try {
+    const { date, time } = req.body;
+
+    if (!date || !time) {
+      return res.status(400).json({ success: false, error: 'date and time are required' });
+    }
+
+    const newDate = new Date(date);
+    if (newDate <= new Date()) {
+      return res.status(400).json({ success: false, error: 'New date must be in the future' });
+    }
+
+    const apt = await Appointment.findById(req.params.id);
+    if (!apt) return res.status(404).json({ success: false, error: 'Appointment not found' });
+
+    // Only the patient who owns the appointment can reschedule
+    if (apt.patientId.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+
+    if (apt.status !== 'scheduled') {
+      return res.status(400).json({ success: false, error: 'Only scheduled appointments can be rescheduled' });
+    }
+
+    const oldDate = apt.date.toLocaleDateString();
+    apt.date = newDate;
+    apt.time = time;
+    await apt.save();
+
+    // Notify doctor about the change
+    await createSystemNotification({
+      userId: apt.doctorId,
+      type: 'appointment',
+      title: 'Appointment Rescheduled',
+      message: `Patient rescheduled their appointment from ${oldDate} to ${newDate.toLocaleDateString()} at ${time}.`
+    });
+
+    const [patientUser, doctorUser] = await Promise.all([
+      User.findById(apt.patientId).select('name email phone'),
+      User.findById(apt.doctorId).select('name email phone')
+    ]);
+
+    res.status(200).json({
+      success: true,
+      message: 'Appointment rescheduled successfully',
+      data: formatAppointment(apt, patientUser, doctorUser)
+    });
   } catch (error) {
     next(error);
   }

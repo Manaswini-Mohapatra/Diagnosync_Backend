@@ -15,11 +15,95 @@ const buildProfile = (user, patient) => ({
   profile: patient || null
 });
 
+// ── Helper: Calculate Health Score ─────────────────────────────────────────
+const calculateHealthScore = (patient) => {
+  let score = 100;
+  let bmiPenalty = 0, diseasePenalty = 0, allergyPenalty = 0;
+  let familyHistoryPenalty = 0, smokingPenalty = 0, exercisePenalty = 0;
+  let bmi = 0;
+
+  // 1. BMI
+  if (patient.height && patient.weight) {
+    const heightM = patient.height / 100;
+    bmi = Number((patient.weight / (heightM * heightM)).toFixed(1));
+    if (bmi < 18.5 || bmi > 25) {
+      bmiPenalty = 10;
+      score -= bmiPenalty;
+    }
+  }
+
+  // 2. Diseases
+  if (patient.medicalConditions && patient.medicalConditions.length > 0) {
+    const conds = patient.medicalConditions.map(c => c.toLowerCase());
+    if (conds.includes('diabetes')) diseasePenalty += 15;
+    if (conds.includes('heart disease')) diseasePenalty += 20;
+    if (conds.includes('high blood pressure')) diseasePenalty += 10;
+    score -= diseasePenalty;
+  }
+
+  // 3. Allergies
+  if (patient.allergies && patient.allergies.length > 0) {
+    allergyPenalty = patient.allergies.length * 2;
+    score -= allergyPenalty;
+  }
+
+  // 4. Family History
+  if (patient.familyHistory) {
+    const fh = patient.familyHistory.toLowerCase();
+    if (fh.includes('heart disease')) familyHistoryPenalty += 10;
+    if (fh.includes('diabetes')) familyHistoryPenalty += 5;
+    if (fh.includes('hypertension')) familyHistoryPenalty += 5;
+    score -= familyHistoryPenalty;
+  }
+
+  // 5. Smoking
+  if (patient.smokingStatus) {
+    if (patient.smokingStatus === 'current') { smokingPenalty = 5; score -= smokingPenalty; }
+    else if (patient.smokingStatus === 'former') { smokingPenalty = 2; score -= smokingPenalty; }
+    else if (patient.smokingStatus === 'never') { smokingPenalty = -10; score -= smokingPenalty; } // -(-10) = +10
+  }
+
+  // 6. Exercise
+  if (patient.exerciseFrequency) {
+    if (patient.exerciseFrequency === 'sedentary') { exercisePenalty = 10; score -= exercisePenalty; }
+    else if (patient.exerciseFrequency === 'light') { exercisePenalty = 5; score -= exercisePenalty; }
+    else if (patient.exerciseFrequency === 'vigorous') { exercisePenalty = -10; score -= exercisePenalty; } // -(-10) = +10
+  }
+
+  // Clamp Score
+  score = Math.max(0, Math.min(score, 100));
+
+  let status = 'Critical';
+  if (score >= 80) status = 'Good';
+  else if (score >= 50) status = 'Moderate';
+
+  return {
+    score,
+    status,
+    bmi,
+    breakdown: {
+      bmiPenalty,
+      diseasePenalty,
+      allergyPenalty,
+      familyHistoryPenalty,
+      smokingPenalty,
+      exercisePenalty
+    }
+  };
+};
+
 // ── GET /api/patients/me ───────────────────────────────────────────────────
 // PatientProfilePage — fetch own profile
 exports.getMyProfile = async (req, res, next) => {
   try {
-    const patient = await Patient.findOne({ userId: req.user._id });
+    let patient = await Patient.findOne({ userId: req.user._id });
+    
+    // dynamically ensure health score exists
+    if (patient && (!patient.healthScore || patient.healthScore.status === 'None')) {
+      patient.healthScore = calculateHealthScore(patient);
+      await patient.save();
+    }
+
     res.status(200).json({
       success: true,
       data: buildProfile(req.user, patient)
@@ -43,33 +127,33 @@ exports.updateMyProfile = async (req, res, next) => {
       emergencyContact, emergencyPhone
     } = req.body;
 
-    const updates = {
-      ...(height            !== undefined && { height }),
-      ...(weight            !== undefined && { weight }),
-      ...(bloodType         !== undefined && { bloodType }),
-      ...(gender            !== undefined && { gender }),
-      ...(dateOfBirth       !== undefined && { dateOfBirth }),
-      // Accept either field name from frontend
-      ...(conditions        !== undefined && { medicalConditions: conditions }),
-      ...(medicalConditions !== undefined && { medicalConditions }),
-      ...(allergies         !== undefined && { allergies }),
-      ...(surgeries         !== undefined && { surgeries }),
-      ...(familyHistory     !== undefined && { familyHistory }),
-      ...(medications       !== undefined && { medications }),
-      ...(smokingStatus     !== undefined && { smokingStatus }),
-      ...(alcoholConsumption !== undefined && { alcoholConsumption }),
-      ...(exerciseFrequency !== undefined && { exerciseFrequency }),
-      ...(diet              !== undefined && { diet }),
-      ...(emergencyContact  !== undefined && { emergencyContact }),
-      ...(emergencyPhone    !== undefined && { emergencyPhone })
-    };
+    let patient = await Patient.findOne({ userId: req.user._id });
+    if (!patient) patient = new Patient({ userId: req.user._id });
 
-    // Upsert — create if doesn't exist yet
-    const patient = await Patient.findOneAndUpdate(
-      { userId: req.user._id },
-      { $set: updates },
-      { new: true, upsert: true, runValidators: true }
-    );
+    // Apply updates
+    if (height !== undefined) patient.height = height;
+    if (weight !== undefined) patient.weight = weight;
+    if (bloodType !== undefined) patient.bloodType = bloodType;
+    if (gender !== undefined) patient.gender = gender;
+    if (dateOfBirth !== undefined) patient.dateOfBirth = dateOfBirth;
+    
+    if (conditions !== undefined) patient.medicalConditions = conditions;
+    if (medicalConditions !== undefined) patient.medicalConditions = medicalConditions;
+    if (allergies !== undefined) patient.allergies = allergies;
+    if (surgeries !== undefined) patient.surgeries = surgeries;
+    if (familyHistory !== undefined) patient.familyHistory = familyHistory;
+    if (medications !== undefined) patient.medications = medications;
+    if (smokingStatus !== undefined) patient.smokingStatus = smokingStatus;
+    if (alcoholConsumption !== undefined) patient.alcoholConsumption = alcoholConsumption;
+    if (exerciseFrequency !== undefined) patient.exerciseFrequency = exerciseFrequency;
+    if (diet !== undefined) patient.diet = diet;
+    if (emergencyContact !== undefined) patient.emergencyContact = emergencyContact;
+    if (emergencyPhone !== undefined) patient.emergencyPhone = emergencyPhone;
+
+    // Calculate score with updated data
+    patient.healthScore = calculateHealthScore(patient);
+
+    await patient.save();
 
     res.status(200).json({
       success: true,
