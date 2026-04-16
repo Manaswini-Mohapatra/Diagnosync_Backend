@@ -153,14 +153,6 @@ exports.getDoctorSlots = async (req, res, next) => {
       slots = doctor.availableSlots || {};
     }
 
-    // Fallback: if doctor hasn't configured slots yet, return default slots
-    if (!slots || (Array.isArray(slots) && slots.length === 0)) {
-      slots = [
-        '9:00 AM', '9:30 AM', '10:00 AM', '10:30 AM',
-        '11:00 AM', '2:00 PM', '2:30 PM', '3:00 PM'
-      ];
-    }
-
     res.status(200).json({ success: true, date, slots });
   } catch (error) {
     next(error);

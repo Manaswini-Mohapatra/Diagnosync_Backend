@@ -70,6 +70,17 @@ const calculateHealthScore = (patient) => {
     else if (patient.exerciseFrequency === 'vigorous') { exercisePenalty = -10; score -= exercisePenalty; } // -(-10) = +10
   }
 
+  // 7. Age adjustment (max ±5 points)
+  let agePenalty = 0;
+  if (patient.age) {
+    if (patient.age < 30)      agePenalty = -5;  // youth bonus +5
+    else if (patient.age < 45) agePenalty = 0;   // neutral
+    else if (patient.age < 60) agePenalty = 2;   // mild: -2
+    else if (patient.age < 75) agePenalty = 4;   // moderate: -4
+    else                        agePenalty = 5;  // senior: -5
+    score -= agePenalty;
+  }
+
   // Clamp Score
   score = Math.max(0, Math.min(score, 100));
 
@@ -87,7 +98,8 @@ const calculateHealthScore = (patient) => {
       allergyPenalty,
       familyHistoryPenalty,
       smokingPenalty,
-      exercisePenalty
+      exercisePenalty,
+      agePenalty
     }
   };
 };
@@ -119,7 +131,7 @@ exports.getMyProfile = async (req, res, next) => {
 exports.updateMyProfile = async (req, res, next) => {
   try {
     const {
-      height, weight, bloodType, gender, dateOfBirth,
+      age, height, weight, bloodType, gender, dateOfBirth,
       conditions,          // frontend sends 'conditions'
       medicalConditions,   // also accept direct field name
       allergies, surgeries, familyHistory, medications,
@@ -131,6 +143,7 @@ exports.updateMyProfile = async (req, res, next) => {
     if (!patient) patient = new Patient({ userId: req.user._id });
 
     // Apply updates
+    if (age !== undefined) patient.age = age;
     if (height !== undefined) patient.height = height;
     if (weight !== undefined) patient.weight = weight;
     if (bloodType !== undefined) patient.bloodType = bloodType;

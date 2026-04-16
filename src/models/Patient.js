@@ -10,6 +10,7 @@ const patientSchema = new mongoose.Schema({
 
   // ── Physical info ──────────────────────────────────────────────────────────
   // PatientRegistrationForm Step 1
+  age: { type: Number, min: 0, max: 120 },  // stored directly
   height: Number,           // cm
   weight: Number,           // kg
   bloodType: {
@@ -69,7 +70,8 @@ const patientSchema = new mongoose.Schema({
       allergyPenalty: { type: Number, default: 0 },
       familyHistoryPenalty: { type: Number, default: 0 },
       smokingPenalty: { type: Number, default: 0 },
-      exercisePenalty: { type: Number, default: 0 }
+      exercisePenalty: { type: Number, default: 0 },
+      agePenalty: { type: Number, default: 0 }
     }
   }
 
