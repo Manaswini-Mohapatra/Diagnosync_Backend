@@ -1,5 +1,7 @@
 const Patient = require('../models/Patient');
 const User    = require('../models/User');
+const cloudinary = require('../config/cloudinary');
+const streamifier = require('streamifier');
 
 // ── Helper: build safe user+profile response ───────────────────────────────
 const buildProfile = (user, patient) => ({
@@ -12,7 +14,8 @@ const buildProfile = (user, patient) => ({
     emailVerified: user.emailVerified,
     createdAt:     user.createdAt
   },
-  profile: patient || null
+  // Convert Mongoose doc → plain object so all fields (incl. reports[]) serialize correctly
+  profile: patient ? (patient.toObject ? patient.toObject() : patient) : null
 });
 
 // ── Helper: Calculate Health Score ─────────────────────────────────────────
@@ -248,6 +251,99 @@ exports.getPatientById = async (req, res, next) => {
     res.status(200).json({
       success: true,
       data: buildProfile(user, patient)
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ── POST /api/patients/me/reports ──────────────────────────────────────────
+// Uploads a report to Cloudinary and saves URL in patient profile
+exports.uploadReport = async (req, res, next) => {
+  try {
+    const { title } = req.body;
+    
+    if (!req.file) {
+      return res.status(400).json({ success: false, error: 'No file provided' });
+    }
+    if (!title) {
+      return res.status(400).json({ success: false, error: 'Report title is required' });
+    }
+
+    let patient = await Patient.findOne({ userId: req.user._id });
+    if (!patient) {
+      patient = new Patient({ userId: req.user._id });
+    }
+
+    // Upload to Cloudinary using a stream
+    const uploadStream = cloudinary.uploader.upload_stream(
+      {
+        folder: `diagnosync/patients/${req.user._id}`,
+        // auto-detect type to support both images and raw PDFs
+        resource_type: 'auto' 
+      },
+      async (error, result) => {
+        if (error) {
+          console.error("Cloudinary Upload Error:", error);
+          return res.status(500).json({ success: false, error: 'Error uploading file' });
+        }
+
+        // Add to patient reports
+        patient.reports.push({
+          title: title,
+          fileUrl: result.secure_url,
+          fileType: result.format || 'unknown',
+          publicId: result.public_id,
+          uploadedAt: new Date()
+        });
+
+        await patient.save();
+
+        res.status(201).json({
+          success: true,
+          data: patient.reports[patient.reports.length - 1]
+        });
+      }
+    );
+
+    streamifier.createReadStream(req.file.buffer).pipe(uploadStream);
+
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ── DELETE /api/patients/me/reports/:reportId ──────────────────────────────
+// Permanently removes a report from MongoDB and Cloudinary
+exports.deleteReport = async (req, res, next) => {
+  try {
+    const patient = await Patient.findOne({ userId: req.user._id });
+    if (!patient) {
+      return res.status(404).json({ success: false, error: 'Patient profile not found' });
+    }
+
+    const report = patient.reports.id(req.params.reportId);
+    if (!report) {
+      return res.status(404).json({ success: false, error: 'Report not found' });
+    }
+
+    // 1. Delete from Cloudinary if publicId exists
+    if (report.publicId) {
+      try {
+        await cloudinary.uploader.destroy(report.publicId);
+      } catch (cloudErr) {
+        console.error("Cloudinary Deletion Error:", cloudErr);
+        // Continue anyway to keep DB in sync
+      }
+    }
+
+    // 2. Remove from Mongoose array
+    patient.reports.pull(req.params.reportId);
+    await patient.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Report deleted successfully'
     });
   } catch (error) {
     next(error);

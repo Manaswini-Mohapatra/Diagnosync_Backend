@@ -1,5 +1,10 @@
 const express = require('express');
 const router  = express.Router();
+const multer  = require('multer');
+const upload  = multer({ 
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
+});
 
 const {
   getAllDoctors,
@@ -29,8 +34,8 @@ router.get('/me', protect, restrictTo('doctor'), getMyProfile);
 // PUT  /api/doctors/me — DoctorRegistrationForm: update professional profile
 router.put('/me', protect, restrictTo('doctor'), updateMyProfile);
 
-// POST /api/doctors/me/documents — DoctorRegistrationForm Step 3: add doc metadata
-router.post('/me/documents', protect, restrictTo('doctor'), addDocument);
+// POST /api/doctors/me/documents — DoctorRegistrationForm Step 3: upload doc to Cloudinary
+router.post('/me/documents', protect, restrictTo('doctor'), upload.single('file'), addDocument);
 
 // DELETE /api/doctors/me/documents/:docId — remove a document
 router.delete('/me/documents/:docId', protect, restrictTo('doctor'), deleteDocument);

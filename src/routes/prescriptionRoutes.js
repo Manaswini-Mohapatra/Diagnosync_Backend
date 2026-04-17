@@ -13,6 +13,12 @@ router.get('/', prescriptionController.getPrescriptions);
 // POST: Create a new prescription (Doctors only)
 router.post('/', restrictTo('doctor', 'admin'), prescriptionController.createPrescription);
 
+// PATCH: Full update (Doctors only)
+router.patch('/:id', restrictTo('doctor', 'admin'), prescriptionController.updatePrescription);
+
+// DELETE: Remove prescription (Doctors only)
+router.delete('/:id', restrictTo('doctor', 'admin'), prescriptionController.deletePrescription);
+
 // PATCH: Update status (e.g. active -> completed/discontinued) (Doctors only)
 router.patch('/:id/status', restrictTo('doctor', 'admin'), prescriptionController.updateStatus);
 

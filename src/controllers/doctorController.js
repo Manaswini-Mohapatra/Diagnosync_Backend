@@ -1,6 +1,9 @@
 const mongoose = require('mongoose');
 const Doctor   = require('../models/Doctor');
 const User     = require('../models/User');
+const Appointment = require('../models/Appointment');
+const cloudinary = require('../config/cloudinary');
+const streamifier = require('streamifier');
 
 // ── Shared helper: find doctor by Doctor _id OR User _id ──────────────────
 const findDoctorByAnyId = async (id) => {
@@ -35,7 +38,8 @@ const formatDoctorForListing = (user, doctor) => ({
   qualifications: doctor.qualifications || [],
   bio:        doctor.bio,
   isVerified: doctor.isVerified,
-  availableSlots: doctor.availableSlots || {}
+  availableSlots: doctor.availableSlots || {},
+  documents: doctor.documents || []
 });
 
 // ── GET /api/doctors ───────────────────────────────────────────────────────
@@ -140,14 +144,32 @@ exports.getDoctorSlots = async (req, res, next) => {
 
     const { date } = req.query;
 
-    // Get the day name from the date
     let slots = [];
     if (date) {
-      const dayName = new Date(date)
-        .toLocaleDateString('en-US', { weekday: 'long' })
-        .toLowerCase();  // gives 'monday', 'tuesday', etc.
+      // 1. Check for date-specific slots (Override)
+      // date is usually 'YYYY-MM-DD'
+      if (doctor.availableSlots?.[date]) {
+        slots = doctor.availableSlots[date];
+      } else {
+        // 2. Fallback to weekly schedule (Default)
+        const dayName = new Date(date)
+          .toLocaleDateString('en-US', { weekday: 'long' })
+          .toLowerCase();
+        slots = doctor.availableSlots?.[dayName] || [];
+      }
 
-      slots = doctor.availableSlots?.[dayName] || [];
+      // 3. Filter out ALREADY BOOKED slots for this day
+      // Query appointments for this doctor on this date that aren't cancelled
+      const bookedAppointments = await Appointment.find({
+        doctorId: doctor.userId, // Controller uses userId for query consistency
+        date: new Date(date),
+        status: { $ne: 'cancelled' }
+      }).select('time');
+
+      const bookedTimes = bookedAppointments.map(a => a.time);
+      
+      // Remove any slot that matches a booked time
+      slots = slots.filter(s => !bookedTimes.includes(s));
     } else {
       // No date provided — return all slots structure
       slots = doctor.availableSlots || {};
@@ -218,31 +240,51 @@ exports.updateMyProfile = async (req, res, next) => {
 };
 
 // ── POST /api/doctors/me/documents ────────────────────────────────────────
-// DoctorRegistrationForm Step 3 — add document metadata
-// (actual file upload to Cloudinary happens client-side or via separate upload handler)
+// DoctorRegistrationForm Step 3 — upload document to Cloudinary
 exports.addDocument = async (req, res, next) => {
   try {
-    const { fileName, fileType, fileSize, documentType, description, fileUrl } = req.body;
-
-    if (!fileName) {
-      return res.status(400).json({ success: false, error: 'fileName is required' });
+    const { documentType, description } = req.body;
+    
+    if (!req.file) {
+      return res.status(400).json({ success: false, error: 'File is required' });
     }
 
-    const doctor = await Doctor.findOneAndUpdate(
-      { userId: req.user._id },
-      {
-        $push: {
-          documents: { fileName, fileType, fileSize, documentType, description, fileUrl }
-        }
+    // Pipeline buffer to Cloudinary
+    const uploadStream = cloudinary.uploader.upload_stream(
+      { 
+        folder: 'diagnosync/doctor_docs',
+        resource_type: 'auto'
       },
-      { new: true, upsert: true }
+      async (error, result) => {
+        if (error) {
+          return res.status(500).json({ success: false, error: 'Cloudinary upload failed' });
+        }
+
+        const newDoc = {
+          fileName: req.file.originalname,
+          fileType: req.file.mimetype,
+          fileSize: req.file.size,
+          documentType,
+          description,
+          fileUrl: result.secure_url,
+          publicId: result.public_id
+        };
+
+        const doctor = await Doctor.findOneAndUpdate(
+          { userId: req.user._id },
+          { $push: { documents: newDoc } },
+          { new: true, upsert: true }
+        );
+
+        res.status(201).json({
+          success: true,
+          message: 'Document uploaded successfully',
+          documents: doctor.documents
+        });
+      }
     );
 
-    res.status(201).json({
-      success: true,
-      message: 'Document added successfully',
-      documents: doctor.documents
-    });
+    streamifier.createReadStream(req.file.buffer).pipe(uploadStream);
   } catch (error) {
     next(error);
   }
@@ -252,19 +294,24 @@ exports.addDocument = async (req, res, next) => {
 // DoctorRegistrationForm — remove a document
 exports.deleteDocument = async (req, res, next) => {
   try {
-    const doctor = await Doctor.findOneAndUpdate(
-      { userId: req.user._id },
-      { $pull: { documents: { _id: req.params.docId } } },
-      { new: true }
-    );
-
+    const doctor = await Doctor.findOne({ userId: req.user._id });
     if (!doctor) {
       return res.status(404).json({ success: false, error: 'Doctor profile not found' });
     }
 
+    // Find the specific document to delete from Cloudinary
+    const docToDelete = doctor.documents.id(req.params.docId);
+    if (docToDelete && docToDelete.publicId) {
+      await cloudinary.uploader.destroy(docToDelete.publicId);
+    }
+
+    // Remove from MongoDB
+    doctor.documents.pull({ _id: req.params.docId });
+    await doctor.save();
+
     res.status(200).json({
       success: true,
-      message: 'Document removed',
+      message: 'Document removed from cloud and database',
       documents: doctor.documents
     });
   } catch (error) {

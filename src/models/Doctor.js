@@ -14,6 +14,7 @@ const documentSchema = new mongoose.Schema({
   },
   description: { type: String },
   fileUrl:     { type: String },           // URL if stored on Cloudinary etc.
+  publicId:    { type: String },           // Cloudinary public_id for deletion
   uploadDate:  { type: Date, default: Date.now }
 }, { _id: true });
 

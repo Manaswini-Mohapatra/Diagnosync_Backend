@@ -78,6 +78,22 @@ exports.createAppointment = async (req, res, next) => {
       return res.status(404).json({ success: false, error: 'Doctor not found' });
     }
 
+    // ── Pre-check: Double booking prevention ──
+    const appointmentDate = new Date(date);
+    const existingAppointment = await Appointment.findOne({
+      doctorId,
+      date: appointmentDate,
+      time,
+      status: { $ne: 'cancelled' }
+    });
+
+    if (existingAppointment) {
+      return res.status(400).json({
+        success: false,
+        error: 'This time slot is already booked for this doctor. Please select another slot.'
+      });
+    }
+
     const appointment = await Appointment.create({
       patientId: req.user._id,
       doctorId,
@@ -438,6 +454,22 @@ exports.rescheduleAppointment = async (req, res, next) => {
 
     if (apt.status !== 'scheduled') {
       return res.status(400).json({ success: false, error: 'Only scheduled appointments can be rescheduled' });
+    }
+
+    // ── Pre-check: Double booking prevention for rescheduling ──
+    const existingAppointment = await Appointment.findOne({
+      doctorId: apt.doctorId,
+      date: newDate,
+      time,
+      status: { $ne: 'cancelled' },
+      _id: { $ne: req.params.id } // Exclude the current appointment
+    });
+
+    if (existingAppointment) {
+      return res.status(400).json({
+        success: false,
+        error: 'The requested time slot is already booked. Please choose a different slot.'
+      });
     }
 
     const oldDate = apt.date.toLocaleDateString();

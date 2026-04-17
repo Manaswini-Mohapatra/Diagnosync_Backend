@@ -5,10 +5,10 @@ const { createSystemNotification } = require('./notificationController');
 // ── Helper: format prescription ───────────────────────────────────────────
 const formatPrescription = (pres, patientUser, doctorUser) => ({
   id: pres._id,
-  patientId: pres.patientId,
+  patientId: (patientUser?._id || pres.patientId)?.toString(),
   patientName: patientUser?.name || 'Unknown',
   patientEmail: patientUser?.email || '',
-  doctorId: pres.doctorId,
+  doctorId: (doctorUser?._id || pres.doctorId)?.toString(),
   doctorName: doctorUser?.name || 'Unknown',
   medicationName: pres.medicationName,
   strength: pres.strength,
@@ -94,13 +94,19 @@ exports.createPrescription = async (req, res, next) => {
 // Role-aware list query for dashboards
 exports.getPrescriptions = async (req, res, next) => {
   try {
-    const { status, page = 1, limit = 20 } = req.query;
+    const { status, patientId, page = 1, limit = 20 } = req.query;
     const filter = {};
 
     if (req.user.role === 'patient') {
       filter.patientId = req.user._id;
     } else if (req.user.role === 'doctor') {
-      filter.doctorId = req.user._id;
+      // If patientId provided in query, doctor can view all for that patient
+      // Otherwise, doctor sees only prescriptions they issued
+      if (patientId) {
+        filter.patientId = patientId;
+      } else {
+        filter.doctorId = req.user._id;
+      }
     }
 
     if (status) filter.status = status;
@@ -125,6 +131,64 @@ exports.getPrescriptions = async (req, res, next) => {
       page: Number(page),
       pages: Math.ceil(total / limit),
       prescriptions: populated
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ── PATCH /api/prescriptions/:id ───────────────────────────────────────────
+// Doctor updates prescription details
+exports.updatePrescription = async (req, res, next) => {
+  try {
+    const pres = await Prescription.findById(req.params.id);
+    if (!pres) return res.status(404).json({ success: false, error: 'Prescription not found' });
+
+    // Ensure doctor owns this prescription
+    if (pres.doctorId.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, error: 'Access denied: You can only manage your own prescriptions' });
+    }
+
+    const updates = req.body;
+    // Prevent doctorId/patientId/prescriptionNumber from being changed via this endpoint for safety
+    delete updates.doctorId;
+    delete updates.patientId;
+    delete updates.prescriptionNumber;
+
+    Object.assign(pres, updates);
+    await pres.save();
+
+    const updatedPres = await Prescription.findById(req.params.id)
+      .populate('patientId', 'name email')
+      .populate('doctorId', 'name email');
+
+    res.status(200).json({
+      success: true,
+      message: 'Prescription updated successfully',
+      data: formatPrescription(updatedPres, updatedPres.patientId, updatedPres.doctorId)
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ── DELETE /api/prescriptions/:id ──────────────────────────────────────────
+// Doctor deletes prescription
+exports.deletePrescription = async (req, res, next) => {
+  try {
+    const pres = await Prescription.findById(req.params.id);
+    if (!pres) return res.status(404).json({ success: false, error: 'Prescription not found' });
+
+    // Ensure doctor owns this prescription
+    if (pres.doctorId.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, error: 'Access denied: You can only delete your own prescriptions' });
+    }
+
+    await Prescription.findByIdAndDelete(req.params.id);
+
+    res.status(200).json({
+      success: true,
+      message: 'Prescription deleted successfully'
     });
   } catch (error) {
     next(error);

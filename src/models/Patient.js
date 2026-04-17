@@ -59,6 +59,15 @@ const patientSchema = new mongoose.Schema({
   emergencyContact: String,
   emergencyPhone: String,
 
+  // ── Medical Reports ────────────────────────────────────────────────────────
+  reports: [{
+    title: String,
+    fileUrl: String,
+    fileType: String,
+    publicId: String,
+    uploadedAt: { type: Date, default: Date.now }
+  }],
+
   // ── Calculated Health Score ────────────────────────────────────────────────
   healthScore: {
     score: { type: Number, default: 0 },

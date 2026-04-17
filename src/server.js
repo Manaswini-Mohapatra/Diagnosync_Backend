@@ -59,6 +59,9 @@ app.use('/api/medications', medicationRoutes);
 const treatmentRoutes = require('./routes/treatmentRoutes');
 app.use('/api/treatments', treatmentRoutes);
 
+const analyticsRoutes = require('./routes/analyticsRoutes');
+app.use('/api/analytics', analyticsRoutes);
+
 const notificationRoutes = require('./routes/notificationRoutes');
 app.use('/api/notifications', notificationRoutes);
 
