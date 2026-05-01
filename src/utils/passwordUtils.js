@@ -1,6 +1,15 @@
 const bcryptjs = require('bcryptjs');
 
-// Validate password strength
+// ── Strong Password Rule ────────────────────────────────────────────────────
+// Applied to NEW signups and password resets. NOT applied to login (backward compat).
+const STRONG_PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&\-_#^])[A-Za-z\d@$!%*?&\-_#^]{8,}$/;
+
+exports.isStrongPassword = (password) => STRONG_PASSWORD_REGEX.test(password);
+
+exports.STRONG_PASSWORD_MESSAGE =
+  'Password must be at least 8 characters and include an uppercase letter, a lowercase letter, a number, and a special character (@$!%*?&-_#^).';
+
+// Validate password strength (detailed breakdown — used for UI feedback)
 exports.validatePasswordStrength = (password) => {
   const requirements = {
     length: password.length >= 8,

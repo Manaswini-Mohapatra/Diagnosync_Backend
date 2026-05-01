@@ -5,7 +5,9 @@ const {
   getMe,
   updateMe,
   deactivateMe,
-  getAllUsers
+  getAllUsers,
+  getUserStats,
+  updateUserStatus
 } = require('../controllers/userController');
 
 const { protect, restrictTo } = require('../middleware/authMiddleware');
@@ -25,5 +27,11 @@ router.delete('/me', deactivateMe);
 
 // GET /api/users — admin only: list all users
 router.get('/', restrictTo('admin'), getAllUsers);
+
+// GET /api/users/stats — admin only: get user counts
+router.get('/stats', restrictTo('admin'), getUserStats);
+
+// PATCH /api/users/:id/status — admin only: activate/deactivate user
+router.patch('/:id/status', restrictTo('admin'), updateUserStatus);
 
 module.exports = router;

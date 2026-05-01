@@ -106,3 +106,53 @@ exports.getAllUsers = async (req, res, next) => {
     next(error);
   }
 };
+
+// ── GET /api/users/stats (admin only) ──────────────────────────────────────
+exports.getUserStats = async (req, res, next) => {
+  try {
+    const totalUsers = await User.countDocuments();
+    const totalPatients = await User.countDocuments({ role: 'patient' });
+    const totalDoctors = await User.countDocuments({ role: 'doctor' });
+    const pendingDoctors = await Doctor.countDocuments({ verificationStatus: 'pending' });
+
+    res.status(200).json({
+      success: true,
+      stats: {
+        totalUsers,
+        totalPatients,
+        totalDoctors,
+        pendingDoctors
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ── PATCH /api/users/:id/status (admin only) ─────────────────────────────────
+exports.updateUserStatus = async (req, res, next) => {
+  try {
+    const { isActive } = req.body;
+    
+    if (typeof isActive !== 'boolean') {
+      return res.status(400).json({ success: false, error: 'isActive must be a boolean' });
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(
+      req.params.id,
+      { isActive, updatedAt: Date.now() },
+      { new: true }
+    ).select('-password');
+
+    if (!updatedUser) {
+      return res.status(404).json({ success: false, error: 'User not found' });
+    }
+
+    res.status(200).json({
+      success: true,
+      user: updatedUser
+    });
+  } catch (error) {
+    next(error);
+  }
+};

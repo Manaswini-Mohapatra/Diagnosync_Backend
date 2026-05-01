@@ -4,6 +4,7 @@ const User     = require('../models/User');
 const Appointment = require('../models/Appointment');
 const cloudinary = require('../config/cloudinary');
 const streamifier = require('streamifier');
+const { createSystemNotification } = require('./notificationController');
 
 // ── Shared helper: find doctor by Doctor _id OR User _id ──────────────────
 const findDoctorByAnyId = async (id) => {
@@ -204,11 +205,22 @@ exports.getMyProfile = async (req, res, next) => {
 exports.updateMyProfile = async (req, res, next) => {
   try {
     const {
+      fullName, phone,
       licenseNumber, licenseState, hospitalAffiliation,
       yearsOfExperience, consultationFee,
       specialties, qualifications, languages,
       bio, availableSlots
     } = req.body;
+
+    // Optional: Update base user fields
+    if (fullName !== undefined || phone !== undefined) {
+      const userUpdates = {};
+      if (fullName !== undefined) userUpdates.name = fullName;
+      if (phone !== undefined) userUpdates.phone = phone;
+      if (Object.keys(userUpdates).length > 0) {
+        await User.findByIdAndUpdate(req.user._id, { $set: userUpdates });
+      }
+    }
 
     const updates = {
       ...(licenseNumber      !== undefined && { licenseNumber }),
@@ -223,7 +235,15 @@ exports.updateMyProfile = async (req, res, next) => {
       ...(availableSlots     !== undefined && { availableSlots })
     };
 
-    const doctor = await Doctor.findOneAndUpdate(
+    // Find existing doctor to check verification status
+    let doctor = await Doctor.findOne({ userId: req.user._id });
+    
+    // If the profile was rejected, resetting it to pending so admin can re-verify
+    if (doctor && doctor.verificationStatus === 'rejected') {
+      updates.verificationStatus = 'pending';
+    }
+
+    doctor = await Doctor.findOneAndUpdate(
       { userId: req.user._id },
       { $set: updates },
       { new: true, upsert: true, runValidators: true }
@@ -232,7 +252,7 @@ exports.updateMyProfile = async (req, res, next) => {
     res.status(200).json({
       success: true,
       message: 'Doctor profile updated successfully',
-      data: formatDoctorForListing(req.user, doctor)
+      data: formatDoctorForListing(await User.findById(req.user._id), doctor)
     });
   } catch (error) {
     next(error);
@@ -247,6 +267,38 @@ exports.addDocument = async (req, res, next) => {
     
     if (!req.file) {
       return res.status(400).json({ success: false, error: 'File is required' });
+    }
+
+    // Graceful fallback for development without Cloudinary keys
+    if (!process.env.CLOUDINARY_API_KEY) {
+      console.warn("CLOUDINARY_API_KEY is not set. Using mock upload.");
+      const mockDocument = {
+        fileName: req.file.originalname,
+        fileType: req.file.mimetype,
+        fileSize: req.file.size,
+        fileUrl: "https://res.cloudinary.com/demo/image/upload/sample.jpg",
+        publicId: "mock_public_id_" + Date.now(),
+        documentType: documentType || 'other',
+        description: description || '',
+        verified: false,
+        uploadDate: Date.now()
+      };
+      const existingDoc = await Doctor.findOne({ userId: req.user._id });
+      const updateObj = { $push: { documents: mockDocument } };
+      if (existingDoc && existingDoc.verificationStatus === 'rejected') {
+        updateObj.$set = { verificationStatus: 'pending' };
+      }
+      
+      const doctor = await Doctor.findOneAndUpdate(
+        { userId: req.user._id },
+        updateObj,
+        { new: true, upsert: true }
+      );
+      return res.status(201).json({
+        success: true,
+        message: 'Mock document uploaded',
+        documents: doctor.documents
+      });
     }
 
     // Pipeline buffer to Cloudinary
@@ -270,9 +322,15 @@ exports.addDocument = async (req, res, next) => {
           publicId: result.public_id
         };
 
+        const existingDoc = await Doctor.findOne({ userId: req.user._id });
+        const updateObj = { $push: { documents: newDoc } };
+        if (existingDoc && existingDoc.verificationStatus === 'rejected') {
+          updateObj.$set = { verificationStatus: 'pending' };
+        }
+
         const doctor = await Doctor.findOneAndUpdate(
           { userId: req.user._id },
-          { $push: { documents: newDoc } },
+          updateObj,
           { new: true, upsert: true }
         );
 
@@ -302,17 +360,71 @@ exports.deleteDocument = async (req, res, next) => {
     // Find the specific document to delete from Cloudinary
     const docToDelete = doctor.documents.id(req.params.docId);
     if (docToDelete && docToDelete.publicId) {
-      await cloudinary.uploader.destroy(docToDelete.publicId);
+      if (process.env.CLOUDINARY_API_KEY) {
+        await cloudinary.uploader.destroy(docToDelete.publicId);
+      }
     }
 
     // Remove from MongoDB
     doctor.documents.pull({ _id: req.params.docId });
+    if (doctor.verificationStatus === 'rejected') {
+      doctor.verificationStatus = 'pending';
+    }
     await doctor.save();
 
     res.status(200).json({
       success: true,
       message: 'Document removed from cloud and database',
       documents: doctor.documents
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ── PATCH /api/doctors/:id/verify (admin only) ────────────────────────────
+// Admin updates the verification status of a doctor
+exports.verifyDoctor = async (req, res, next) => {
+  try {
+    const { status } = req.body; // expected: 'verified', 'rejected', or 'pending'
+
+    if (!['verified', 'rejected', 'pending'].includes(status)) {
+      return res.status(400).json({ success: false, error: 'Invalid status' });
+    }
+
+    const doctorId = req.params.id;
+    const doctor = await findDoctorByAnyId(doctorId);
+
+    if (!doctor) {
+      return res.status(404).json({ success: false, error: 'Doctor not found' });
+    }
+
+    doctor.verificationStatus = status;
+    doctor.isVerified = status === 'verified';
+    await doctor.save();
+
+    if (status === 'rejected') {
+      await createSystemNotification({
+        userId: doctor.userId,
+        type: 'alert',
+        priority: 'high',
+        title: 'Profile Verification Rejected',
+        message: 'Your profile verification was rejected. Please review and re-upload the correct information and documents for approval.'
+      });
+    } else if (status === 'verified') {
+      await createSystemNotification({
+        userId: doctor.userId,
+        type: 'alert',
+        priority: 'medium',
+        title: 'Profile Verification Approved',
+        message: 'Congratulations! Your profile has been verified and approved by the admin. You now have full access to all doctor features.'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Doctor verification status updated to ${status}`,
+      doctor
     });
   } catch (error) {
     next(error);

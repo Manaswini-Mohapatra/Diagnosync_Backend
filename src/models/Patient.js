@@ -36,7 +36,7 @@ const patientSchema = new mongoose.Schema({
   // PatientRegistrationForm Step 3
   smokingStatus: {
     type: String,
-    enum: ['never', 'former', 'current', ''],
+    enum: ['never', 'former', 'current', 'occasional', ''],
     default: 'never'
   },
   alcoholConsumption: {     // ← Added: was in frontend but missing from model

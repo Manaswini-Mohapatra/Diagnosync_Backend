@@ -146,9 +146,9 @@ exports.updateMyProfile = async (req, res, next) => {
     if (!patient) patient = new Patient({ userId: req.user._id });
 
     // Apply updates
-    if (age !== undefined) patient.age = age;
-    if (height !== undefined) patient.height = height;
-    if (weight !== undefined) patient.weight = weight;
+    if (age !== undefined) patient.age = age === "" ? null : age;
+    if (height !== undefined) patient.height = height === "" ? null : height;
+    if (weight !== undefined) patient.weight = weight === "" ? null : weight;
     if (bloodType !== undefined) patient.bloodType = bloodType;
     if (gender !== undefined) patient.gender = gender;
     if (dateOfBirth !== undefined) patient.dateOfBirth = dateOfBirth;
@@ -177,6 +177,11 @@ exports.updateMyProfile = async (req, res, next) => {
       data: buildProfile(req.user, patient)
     });
   } catch (error) {
+    if (error.name === 'ValidationError') {
+      console.error('Validation Error Details:', Object.values(error.errors).map(e => e.message));
+    } else {
+      console.error('Profile Update Error:', error);
+    }
     next(error);
   }
 };
@@ -275,6 +280,32 @@ exports.uploadReport = async (req, res, next) => {
       patient = new Patient({ userId: req.user._id });
     }
 
+    // Graceful fallback for development without Cloudinary keys
+    if (!process.env.CLOUDINARY_API_KEY) {
+      console.warn("CLOUDINARY_API_KEY is not set. Using mock upload for patient report.");
+      const mockReport = {
+        fileName: req.file.originalname,
+        fileType: req.file.mimetype,
+        fileSize: req.file.size,
+        fileUrl: "https://res.cloudinary.com/demo/image/upload/sample.jpg",
+        publicId: "mock_public_id_" + Date.now(),
+        reportType: reportType || 'other',
+        description: description || '',
+        date: date ? new Date(date) : new Date(),
+        uploadDate: Date.now()
+      };
+      const patient = await Patient.findOneAndUpdate(
+        { userId: req.user._id },
+        { $push: { reports: mockReport } },
+        { new: true, upsert: true }
+      );
+      return res.status(201).json({
+        success: true,
+        message: 'Mock report uploaded successfully',
+        reports: patient.reports
+      });
+    }
+
     // Upload to Cloudinary using a stream
     const uploadStream = cloudinary.uploader.upload_stream(
       {
@@ -330,7 +361,9 @@ exports.deleteReport = async (req, res, next) => {
     // 1. Delete from Cloudinary if publicId exists
     if (report.publicId) {
       try {
-        await cloudinary.uploader.destroy(report.publicId);
+        if (process.env.CLOUDINARY_API_KEY) {
+          await cloudinary.uploader.destroy(report.publicId);
+        }
       } catch (cloudErr) {
         console.error("Cloudinary Deletion Error:", cloudErr);
         // Continue anyway to keep DB in sync

@@ -45,6 +45,8 @@ const stubRouter = (label) => {
 
 const appointmentRoutes = require('./routes/appointmentRoutes');
 app.use('/api/appointments', appointmentRoutes);
+const paymentRoutes = require('./routes/paymentRoutes');
+app.use('/api/payments', paymentRoutes);
 const prescriptionRoutes = require('./routes/prescriptionRoutes');
 app.use('/api/prescriptions', prescriptionRoutes);
 app.use('/api/nlp', stubRouter('NLP'));

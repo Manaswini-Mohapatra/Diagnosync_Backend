@@ -58,7 +58,7 @@ const appointmentSchema = new mongoose.Schema({
   // Matches both DoctorAppointmentsPage.jsx and AppointmentBooking.jsx
   status: {
     type: String,
-    enum: ['scheduled', 'in-progress', 'completed', 'cancelled'],
+    enum: ['pending', 'scheduled', 'in-progress', 'completed', 'cancelled'],
     default: 'scheduled'
   },
 

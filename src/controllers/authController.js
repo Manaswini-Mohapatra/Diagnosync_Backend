@@ -3,13 +3,20 @@ const Patient = require('../models/Patient');
 const Doctor = require('../models/Doctor');
 const { generateAccessToken, generateOtpToken, verifyToken } = require('../utils/tokenUtils');
 const { sendWelcomeEmail, sendPasswordResetEmail } = require('../utils/emailService');
+const { isStrongPassword, STRONG_PASSWORD_MESSAGE } = require('../utils/passwordUtils');
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 /** Strip password from a user object before sending to client */
-const sanitizeUser = (user) => {
+const sanitizeUser = async (user) => {
   const obj = user.toObject();
   delete obj.password;
+  if (obj.role === 'doctor') {
+    const doctor = await Doctor.findOne({ userId: obj._id });
+    if (doctor) {
+      obj.verificationStatus = doctor.verificationStatus;
+    }
+  }
   return obj;
 };
 
@@ -29,6 +36,11 @@ exports.register = async (req, res, next) => {
     const existing = await User.findOne({ email });
     if (existing) {
       return res.status(409).json({ success: false, error: 'Email already registered' });
+    }
+
+    // Enforce strong password for new registrations
+    if (!isStrongPassword(password)) {
+      return res.status(400).json({ success: false, error: STRONG_PASSWORD_MESSAGE });
     }
 
     // Create User (password hashing done by pre-save hook in User model)
@@ -52,7 +64,7 @@ exports.register = async (req, res, next) => {
       success: true,
       message: 'Account created successfully',
       token,
-      user: sanitizeUser(user)
+      user: await sanitizeUser(user)
     });
   } catch (error) {
     next(error);
@@ -82,11 +94,16 @@ exports.login = async (req, res, next) => {
 
     const token = generateAccessToken(buildPayload(user));
 
+    // Soft enforcement: flag weak passwords so frontend can show an upgrade banner
+    // Does NOT block login — existing users with old weak passwords still get in.
+    const weakPassword = !isStrongPassword(req.body.password);
+
     res.status(200).json({
       success: true,
       message: 'Login successful',
       token,
-      user: sanitizeUser(user)
+      user: await sanitizeUser(user),
+      weakPassword
     });
   } catch (error) {
     next(error);
@@ -98,7 +115,7 @@ exports.login = async (req, res, next) => {
 exports.getMe = async (req, res) => {
   res.status(200).json({
     success: true,
-    user: sanitizeUser(req.user)
+    user: await sanitizeUser(req.user)
   });
 };
 
@@ -166,6 +183,11 @@ exports.resetPassword = async (req, res, next) => {
     const user = await User.findById(decoded.id);
     if (!user) {
       return res.status(404).json({ success: false, error: 'User not found' });
+    }
+
+    // Enforce strong password for resets
+    if (!isStrongPassword(actualPassword)) {
+      return res.status(400).json({ success: false, error: STRONG_PASSWORD_MESSAGE });
     }
 
     user.password = actualPassword;  // pre-save hook will hash it

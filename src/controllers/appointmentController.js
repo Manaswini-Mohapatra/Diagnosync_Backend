@@ -103,7 +103,7 @@ exports.createAppointment = async (req, res, next) => {
       reason: reason || '',
       notes:  notes  || '',
       duration: duration || 30,
-      status: 'scheduled'
+      status: req.body.status || 'scheduled'
     });
 
     const formatted = formatAppointment(appointment, req.user, doctorUser);
@@ -374,14 +374,34 @@ exports.deleteAppointment = async (req, res, next) => {
       return res.status(403).json({ success: false, error: 'Access denied' });
     }
 
-    // Soft delete: if already cancelled, permanently delete; otherwise just cancel
-    if (apt.status === 'cancelled' || req.user.role === 'admin') {
+    // Soft delete: if already cancelled, permanently delete
+    if (apt.status === 'cancelled') {
       await Appointment.findByIdAndDelete(req.params.id);
       return res.status(200).json({ success: true, message: 'Appointment permanently deleted' });
     }
 
+    // Otherwise, cancel it
     apt.status = 'cancelled';
     await apt.save();
+
+    // If an admin cancelled it, notify both patient and doctor
+    if (req.user.role === 'admin') {
+      await createSystemNotification({
+        userId: apt.patientId,
+        type: 'alert',
+        priority: 'high',
+        title: 'Appointment Cancelled',
+        message: 'An administrator has cancelled your upcoming appointment.'
+      });
+      await createSystemNotification({
+        userId: apt.doctorId,
+        type: 'alert',
+        priority: 'high',
+        title: 'Appointment Cancelled',
+        message: 'An administrator has cancelled one of your scheduled appointments.'
+      });
+    }
+
     res.status(200).json({ success: true, message: 'Appointment cancelled', data: { id: apt._id, status: 'cancelled' } });
   } catch (error) {
     next(error);

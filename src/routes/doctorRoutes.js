@@ -13,7 +13,8 @@ const {
   getMyProfile,
   updateMyProfile,
   addDocument,
-  deleteDocument
+  deleteDocument,
+  verifyDoctor
 } = require('../controllers/doctorController');
 
 const { protect, restrictTo } = require('../middleware/authMiddleware');
@@ -47,5 +48,8 @@ router.get('/:id', getDoctorById);
 
 // GET /api/doctors/:id/slots?date=YYYY-MM-DD — AppointmentBooking Step 2
 router.get('/:id/slots', getDoctorSlots);
+
+// PATCH /api/doctors/:id/verify — Admin only: verify doctor
+router.patch('/:id/verify', protect, restrictTo('admin'), verifyDoctor);
 
 module.exports = router;
