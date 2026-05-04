@@ -50,7 +50,8 @@ app.use('/api/payments', paymentRoutes);
 const prescriptionRoutes = require('./routes/prescriptionRoutes');
 app.use('/api/prescriptions', prescriptionRoutes);
 app.use('/api/nlp', stubRouter('NLP'));
-app.use('/api/ml', stubRouter('ML'));
+const mlRoutes = require('./routes/mlRoutes');
+app.use('/api/ml', mlRoutes);
 const drugInteractionRoutes = require('./routes/drugInteractionRoutes');
 app.use('/api/interactions', drugInteractionRoutes);
 // /api/patients ─ live (Phase 3)

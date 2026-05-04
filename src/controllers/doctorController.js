@@ -39,6 +39,7 @@ const formatDoctorForListing = (user, doctor) => ({
   qualifications: doctor.qualifications || [],
   bio:        doctor.bio,
   isVerified: doctor.isVerified,
+  verificationStatus: doctor.verificationStatus,
   availableSlots: doctor.availableSlots || {},
   documents: doctor.documents || []
 });

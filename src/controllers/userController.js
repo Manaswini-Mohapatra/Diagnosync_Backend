@@ -113,7 +113,12 @@ exports.getUserStats = async (req, res, next) => {
     const totalUsers = await User.countDocuments();
     const totalPatients = await User.countDocuments({ role: 'patient' });
     const totalDoctors = await User.countDocuments({ role: 'doctor' });
-    const pendingDoctors = await Doctor.countDocuments({ verificationStatus: 'pending' });
+    const pendingDoctors = await Doctor.countDocuments({
+      $or: [
+        { verificationStatus: 'pending' },
+        { verificationStatus: { $exists: false } }
+      ]
+    });
 
     res.status(200).json({
       success: true,
