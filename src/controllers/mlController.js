@@ -96,41 +96,10 @@ exports.chatWithBot = async (req, res) => {
 
       // Auto-fetch treatments and save every predicted condition
       try {
-        const treatRes = await axios.post(`${TREATMENT_API_URL}/api/treatment`, { results });
-        const treatmentData = treatRes.data;
-        treatmentPayload = treatmentData;
-
-        // Map treatment API data by position:
-        //   index 0 → primary condition treatment
-        //   index 1+ → runner_ups[0], runner_ups[1], ...
-        const treatmentByIndex = {};
-        if (treatmentData.primary) treatmentByIndex[0] = treatmentData.primary;
-        if (Array.isArray(treatmentData.runner_ups)) {
-          treatmentData.runner_ups.forEach((ru, idx) => {
-            treatmentByIndex[idx + 1] = ru;
-          });
-        }
-
-        // Build one record for EVERY condition the symptom checker predicted
         const allPredictedConditions = results.conditions || [];
-        // Ensure the primary is always included even if conditions array is empty
         if (allPredictedConditions.length === 0 && results.primaryCondition) {
           allPredictedConditions.push({ name: results.primaryCondition });
         }
-
-        const conditionsToSave = allPredictedConditions.map((cond, idx) => ({
-          condition: cond.name || `Condition ${idx + 1}`,
-          treatmentData: treatmentByIndex[idx] || {
-            // Graceful fallback when treatment API has no data for this condition
-            condition: cond.name,
-            severity: cond.severity || 'Low',
-            recommendations: [],
-            notes: 'Detailed treatment plan not available for this condition. Please consult your doctor.',
-            duration: 'As directed by your physician',
-            followUp: 'Schedule a consultation with your healthcare provider.',
-            warnings: []
-          }
-        }));
 
         // Fetch conditions already saved for this user to prevent duplicates in the VIEW
         const existingConditions = await MLTreatment.find({ userId: req.user._id })
@@ -141,9 +110,44 @@ exports.chatWithBot = async (req, res) => {
         );
 
         // Insert only conditions not yet in history
-        const newRecords = conditionsToSave.filter(
-          ({ condition }) => !existingSet.has(condition.toLowerCase().trim())
+        const newConditions = allPredictedConditions.filter(
+          (cond) => !existingSet.has((cond.name || '').toLowerCase().trim())
         );
+
+        const newRecords = [];
+
+        // Fetch treatment for each new condition concurrently
+        await Promise.all(newConditions.map(async (cond) => {
+          try {
+            // Trick the treatment API into treating this condition as primary
+            // to bypass the top-3 limit and preserve medibot data enrichment
+            const singleResultPayload = {
+              ...results,
+              primaryCondition: cond.name,
+              conditions: [cond]
+            };
+            const treatRes = await axios.post(`${TREATMENT_API_URL}/api/treatment`, { results: singleResultPayload });
+            
+            newRecords.push({
+              condition: cond.name,
+              treatmentData: treatRes.data.primary
+            });
+          } catch (err) {
+            // Graceful fallback when treatment API has no data for this condition
+            newRecords.push({
+              condition: cond.name,
+              treatmentData: {
+                condition: cond.name,
+                severity: cond.severity || 'Low',
+                recommendations: [],
+                notes: 'Detailed treatment plan not available for this condition. Please consult your doctor.',
+                duration: 'As directed by your physician',
+                followUp: 'Schedule a consultation with your healthcare provider.',
+                warnings: []
+              }
+            });
+          }
+        }));
 
         if (newRecords.length > 0) {
           await MLTreatment.insertMany(
@@ -155,6 +159,12 @@ exports.chatWithBot = async (req, res) => {
             }))
           );
         }
+        
+        // For the immediate API response to the frontend, send the primary treatment
+        const primaryRecord = newRecords.find(r => r.condition === results.primaryCondition) 
+          || { treatmentData: null };
+        treatmentPayload = { primary: primaryRecord.treatmentData };
+
       } catch (treatErr) {
         // Non-fatal: treatment fetch failed, still return prediction results
         console.error('Treatment API failed:', treatErr.message);
