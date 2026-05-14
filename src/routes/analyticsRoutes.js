@@ -3,9 +3,11 @@ const router = express.Router();
 const analyticsController = require('../controllers/analyticsController');
 const { protect, restrictTo } = require('../middleware/authMiddleware');
 
-router.use(protect);
-router.use(restrictTo('doctor'));
+const adminAnalyticsController = require('../controllers/adminAnalyticsController');
 
-router.get('/doctor', analyticsController.getDoctorAnalytics);
+router.use(protect);
+
+router.get('/doctor', restrictTo('doctor'), analyticsController.getDoctorAnalytics);
+router.get('/admin', restrictTo('admin'), adminAnalyticsController.getAdminDashboard);
 
 module.exports = router;

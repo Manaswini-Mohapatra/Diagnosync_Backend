@@ -36,6 +36,7 @@ const errorHandler = (err, req, res, next) => {
   }
 
   // Default error
+  res.locals.errorMessage = err.message || 'Server error';
   res.status(err.status || 500).json({
     success: false,
     error: err.message || 'Server error'
