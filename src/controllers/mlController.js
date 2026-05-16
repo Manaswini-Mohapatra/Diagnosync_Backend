@@ -109,15 +109,25 @@ exports.chatWithBot = async (req, res) => {
           existingConditions.map((r) => r.condition.toLowerCase().trim())
         );
 
+        // Touch the updatedAt for reappearing conditions so they bubble up to the top
+        const reappearingConditions = allPredictedConditions.filter(
+          (cond) => existingSet.has((cond.name || '').toLowerCase().trim())
+        );
+        if (reappearingConditions.length > 0) {
+          const names = reappearingConditions.map(c => c.name);
+          await MLTreatment.updateMany(
+            { userId: req.user._id, condition: { $in: names } },
+            { $currentDate: { updatedAt: true } }
+          );
+        }
+
         // Insert only conditions not yet in history
         const newConditions = allPredictedConditions.filter(
           (cond) => !existingSet.has((cond.name || '').toLowerCase().trim())
         );
 
-        const newRecords = [];
-
         // Fetch treatment for each new condition concurrently
-        await Promise.all(newConditions.map(async (cond) => {
+        const newRecords = await Promise.all(newConditions.map(async (cond) => {
           try {
             // Trick the treatment API into treating this condition as primary
             // to bypass the top-3 limit and preserve medibot data enrichment
@@ -128,13 +138,13 @@ exports.chatWithBot = async (req, res) => {
             };
             const treatRes = await axios.post(`${TREATMENT_API_URL}/api/treatment`, { results: singleResultPayload });
             
-            newRecords.push({
+            return {
               condition: cond.name,
               treatmentData: treatRes.data.primary
-            });
+            };
           } catch (err) {
             // Graceful fallback when treatment API has no data for this condition
-            newRecords.push({
+            return {
               condition: cond.name,
               treatmentData: {
                 condition: cond.name,
@@ -145,13 +155,15 @@ exports.chatWithBot = async (req, res) => {
                 followUp: 'Schedule a consultation with your healthcare provider.',
                 warnings: []
               }
-            });
+            };
           }
         }));
 
         if (newRecords.length > 0) {
+          // Reverse so that the primary condition is inserted last and gets the
+          // highest _id — this ensures it sorts to the top when updatedAt is equal.
           await MLTreatment.insertMany(
-            newRecords.map(({ condition, treatmentData: td }) => ({
+            [...newRecords].reverse().map(({ condition, treatmentData: td }) => ({
               userId: req.user._id,
               sessionId,
               condition,
@@ -222,7 +234,7 @@ exports.getChatHistory = async (req, res) => {
 exports.getTreatmentHistory = async (req, res) => {
   try {
     const treatments = await MLTreatment.find({ userId: req.user._id })
-      .sort({ createdAt: -1 })
+      .sort({ updatedAt: -1, _id: -1 })
       .lean();
 
     res.status(200).json({ success: true, treatments });

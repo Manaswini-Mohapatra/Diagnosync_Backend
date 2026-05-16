@@ -267,7 +267,7 @@ exports.getPatientById = async (req, res, next) => {
 exports.uploadReport = async (req, res, next) => {
   try {
     const { title } = req.body;
-    
+
     if (!req.file) {
       return res.status(400).json({ success: false, error: 'No file provided' });
     }
@@ -275,65 +275,41 @@ exports.uploadReport = async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'Report title is required' });
     }
 
-    let patient = await Patient.findOne({ userId: req.user._id });
-    if (!patient) {
-      patient = new Patient({ userId: req.user._id });
-    }
-
-    // Graceful fallback for development without Cloudinary keys
-    if (!process.env.CLOUDINARY_API_KEY) {
-      console.warn("CLOUDINARY_API_KEY is not set. Using mock upload for patient report.");
-      const mockReport = {
-        fileName: req.file.originalname,
-        fileType: req.file.mimetype,
-        fileSize: req.file.size,
-        fileUrl: "https://res.cloudinary.com/demo/image/upload/sample.jpg",
-        publicId: "mock_public_id_" + Date.now(),
-        reportType: reportType || 'other',
-        description: description || '',
-        date: date ? new Date(date) : new Date(),
-        uploadDate: Date.now()
-      };
-      const patient = await Patient.findOneAndUpdate(
-        { userId: req.user._id },
-        { $push: { reports: mockReport } },
-        { new: true, upsert: true }
-      );
-      return res.status(201).json({
-        success: true,
-        message: 'Mock report uploaded successfully',
-        reports: patient.reports
-      });
-    }
-
     // Upload to Cloudinary using a stream
     const uploadStream = cloudinary.uploader.upload_stream(
       {
         folder: `diagnosync/patients/${req.user._id}`,
-        // auto-detect type to support both images and raw PDFs
-        resource_type: 'auto' 
+        resource_type: 'auto'
       },
-      async (error, result) => {
-        if (error) {
-          console.error("Cloudinary Upload Error:", error);
-          return res.status(500).json({ success: false, error: 'Error uploading file' });
+      async (cloudErr, result) => {
+        if (cloudErr) {
+          console.error('Cloudinary Upload Error:', cloudErr);
+          return res.status(500).json({ success: false, error: 'Error uploading file to storage' });
         }
 
-        // Add to patient reports
-        patient.reports.push({
-          title: title,
-          fileUrl: result.secure_url,
-          fileType: result.format || 'unknown',
-          publicId: result.public_id,
-          uploadedAt: new Date()
-        });
+        try {
+          const newReport = {
+            title,
+            fileUrl: result.secure_url,
+            fileType: result.format || req.file.mimetype.split('/')[1] || 'unknown',
+            publicId: result.public_id,
+            uploadedAt: new Date()
+          };
 
-        await patient.save();
+          // Atomic push — upserts the patient document if it doesn't exist yet
+          const updated = await Patient.findOneAndUpdate(
+            { userId: req.user._id },
+            { $push: { reports: newReport } },
+            { new: true, upsert: true }
+          );
 
-        res.status(201).json({
-          success: true,
-          data: patient.reports[patient.reports.length - 1]
-        });
+          const saved = updated.reports[updated.reports.length - 1];
+
+          return res.status(201).json({ success: true, data: saved });
+        } catch (saveErr) {
+          console.error('DB save error after Cloudinary upload:', saveErr);
+          return res.status(500).json({ success: false, error: 'File uploaded but failed to save record.' });
+        }
       }
     );
 

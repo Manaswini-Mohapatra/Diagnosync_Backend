@@ -74,13 +74,19 @@ exports.register = async (req, res, next) => {
 // ── POST /api/auth/login ───────────────────────────────────────────────────
 exports.login = async (req, res, next) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, role } = req.body;
 
     // Find user and include password for comparison
     const user = await User.findOne({ email }).select('+password');
     if (!user) {
       // Intentionally vague message to prevent email enumeration
       return res.status(401).json({ success: false, error: 'Invalid credentials' });
+    }
+
+    // Role verification: Admins can log in from any portal.
+    // For others, the requested role must match the DB role.
+    if (role && user.role !== 'admin' && user.role !== role) {
+      return res.status(401).json({ success: false, error: 'Unauthorized: Invalid role selection for this account' });
     }
 
     if (!user.isActive) {
