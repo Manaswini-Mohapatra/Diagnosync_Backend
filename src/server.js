@@ -4,6 +4,10 @@ const connectDB = require('./database/connection');
 
 const app = express();
 
+app.get("/", (req, res) => {
+  res.send("DiagnoSync Backend Running");
+});
+
 // ── Middleware ─────────────────────────────────────────────────────────────
 const corsMiddleware = require('./middleware/corsMiddleware');
 const errorHandler = require('./middleware/errorHandler');
