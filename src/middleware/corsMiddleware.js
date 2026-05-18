@@ -1,8 +1,8 @@
 const cors = require('cors');
 
-// Allowed origins — driven by env so it works across dev/staging/prod
 const allowedOrigins = [
   process.env.CORS_ORIGIN,          // e.g. http://localhost:5173 (Vite frontend)
+  'http://localhost:5173',           // Vite local dev port
   'http://localhost:3000',           // fallback CRA / Next.js dev port
   'http://localhost:5000',           // same-origin self-calls if needed
 ].filter(Boolean);                   // strip undefined/null entries
