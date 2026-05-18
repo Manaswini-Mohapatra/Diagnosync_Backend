@@ -12,7 +12,12 @@ const corsOptions = {
     // Allow requests with no origin (e.g. mobile apps, Postman, server-to-server)
     if (!origin) return callback(null, true);
 
-    if (allowedOrigins.includes(origin)) {
+    // Check if the origin matches our fixed list or dynamic Netlify deploy previews/domains
+    const isNetlifyMatch = origin === 'https://diagnosync.netlify.app' || 
+                           origin === 'https://diagnosync.netlify.app/' ||
+                           /^https:\/\/[a-zA-Z0-9-]+--diagnosync\.netlify\.app$/.test(origin);
+
+    if (allowedOrigins.includes(origin) || isNetlifyMatch) {
       callback(null, true);
     } else {
       callback(new Error(`CORS policy: Origin "${origin}" is not allowed.`));
