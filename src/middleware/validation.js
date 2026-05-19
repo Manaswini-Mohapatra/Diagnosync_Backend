@@ -79,6 +79,11 @@ exports.resetPasswordValidator = [
     .matches(/[0-9]/).withMessage('Password must contain at least one number'),
 ];
 
+exports.verifyResetTokenValidator = [
+  body('token')
+    .notEmpty().withMessage('Reset token is required'),
+];
+
 // ── User Update Validators ─────────────────────────────────────────────────
 
 exports.updateUserValidator = [

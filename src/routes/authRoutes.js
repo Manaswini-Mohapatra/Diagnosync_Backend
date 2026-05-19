@@ -6,6 +6,7 @@ const {
   login,
   getMe,
   forgotPassword,
+  verifyResetToken,
   resetPassword,
   refreshToken
 } = require('../controllers/authController');
@@ -17,6 +18,7 @@ const {
   loginValidator,
   forgotPasswordValidator,
   resetPasswordValidator,
+  verifyResetTokenValidator,
   validate
 } = require('../middleware/validation');
 
@@ -30,6 +32,9 @@ router.post('/login', loginValidator, validate, login);
 
 // POST /api/auth/forgot-password
 router.post('/forgot-password', forgotPasswordValidator, validate, forgotPassword);
+
+// POST /api/auth/verify-reset-token
+router.post('/verify-reset-token', verifyResetTokenValidator, validate, verifyResetToken);
 
 // POST /api/auth/reset-password
 router.post('/reset-password', resetPasswordValidator, validate, resetPassword);

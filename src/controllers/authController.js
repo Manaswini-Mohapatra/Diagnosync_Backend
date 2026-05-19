@@ -1,6 +1,7 @@
 const User = require('../models/User');
 const Patient = require('../models/Patient');
 const Doctor = require('../models/Doctor');
+const crypto = require('crypto');
 const { generateAccessToken, generateOtpToken, verifyToken } = require('../utils/tokenUtils');
 const { sendWelcomeEmail, sendPasswordResetEmail } = require('../utils/emailService');
 const { isStrongPassword, STRONG_PASSWORD_MESSAGE } = require('../utils/passwordUtils');
@@ -140,10 +141,18 @@ exports.forgotPassword = async (req, res, next) => {
       });
     }
 
-    // Generate a short-lived reset token (1 hour)
-    const resetToken = generateOtpToken({ id: user._id.toString(), purpose: 'reset' }, '1h');
+    // Generate a cryptographically secure random token (unhashed raw string)
+    const rawToken = crypto.randomBytes(32).toString('hex');
 
-    // Build the reset URL pointing to our frontend page dynamically
+    // Hash the token using SHA-256 to store in the database
+    const hashedToken = crypto.createHash('sha256').update(rawToken).digest('hex');
+
+    // Save the hashed token and a 15-minute expiration time
+    user.resetPasswordToken = hashedToken;
+    user.resetPasswordExpires = Date.now() + 15 * 60 * 1000; // 15 minutes
+    await user.save();
+
+    // Build the reset URL pointing to our frontend page dynamically using the raw token
     let clientOrigin = req.get('origin');
     if (!clientOrigin) {
       const referer = req.get('referer');
@@ -160,17 +169,18 @@ exports.forgotPassword = async (req, res, next) => {
       clientOrigin = process.env.CORS_ORIGIN || 'http://localhost:5173';
     }
     const cleanOrigin = clientOrigin.replace(/\/$/, '');
-    const resetUrl = `${cleanOrigin}/password-reset?token=${resetToken}`;
+    const resetUrl = `${cleanOrigin}/password-reset?token=${rawToken}`;
 
-    // Log the token and link to console for easy testing/debugging
+    // Log the raw token and link to console for easy testing/debugging
     console.log('\n==================================================');
-    console.log(`🔑 PASSWORD RESET GENERATED FOR: ${email}`);
-    console.log(`Token: ${resetToken}`);
+    console.log(`🔑 SECURE PASSWORD RESET GENERATED FOR: ${email}`);
+    console.log(`Raw Token: ${rawToken}`);
+    console.log(`Hashed Token (DB): ${hashedToken}`);
     console.log(`Reset Link: ${resetUrl}`);
     console.log('==================================================\n');
 
     // Non-blocking — send via Mailtrap (dev) or real SMTP (production)
-    sendPasswordResetEmail(email, resetUrl).catch((err) =>
+    sendPasswordResetEmail(email, resetUrl, rawToken).catch((err) =>
       console.error('Failed to send reset email:', err.message)
     );
 
@@ -179,12 +189,40 @@ exports.forgotPassword = async (req, res, next) => {
       message: 'If that email exists, a reset link has been sent'
     };
 
-    // For testing/development: return the token in the JSON response
+    // For testing/development: return the raw token in the JSON response
     if (process.env.NODE_ENV !== 'production') {
-      responsePayload.token = resetToken;
+      responsePayload.token = rawToken;
     }
 
     res.status(200).json(responsePayload);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ── POST /api/auth/verify-reset-token ──────────────────────────────────────
+exports.verifyResetToken = async (req, res, next) => {
+  try {
+    const { token } = req.body;
+
+    if (!token) {
+      return res.status(400).json({ success: false, error: 'Reset token is required' });
+    }
+
+    // Hash the raw token to compare it to the hashed DB token
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+
+    // Find the user with a matching hashed token that is not expired
+    const user = await User.findOne({
+      resetPasswordToken: hashedToken,
+      resetPasswordExpires: { $gt: Date.now() }
+    });
+
+    if (!user) {
+      return res.status(400).json({ success: false, error: 'Invalid or expired reset token' });
+    }
+
+    res.status(200).json({ success: true, valid: true });
   } catch (error) {
     next(error);
   }
@@ -205,20 +243,17 @@ exports.resetPassword = async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'New password is required' });
     }
 
-    let decoded;
-    try {
-      decoded = verifyToken(token);
-    } catch {
-      return res.status(400).json({ success: false, error: 'Invalid or expired reset token' });
-    }
+    // Hash the raw token to compare with DB
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
 
-    if (decoded.purpose !== 'reset') {
-      return res.status(400).json({ success: false, error: 'Invalid reset token' });
-    }
+    // Find the user with a matching hashed token that is not expired
+    const user = await User.findOne({
+      resetPasswordToken: hashedToken,
+      resetPasswordExpires: { $gt: Date.now() }
+    });
 
-    const user = await User.findById(decoded.id);
     if (!user) {
-      return res.status(404).json({ success: false, error: 'User not found' });
+      return res.status(400).json({ success: false, error: 'Invalid or expired reset token' });
     }
 
     // Enforce strong password for resets
@@ -227,6 +262,8 @@ exports.resetPassword = async (req, res, next) => {
     }
 
     user.password = actualPassword;  // pre-save hook will hash it
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpires = undefined;
     user.updatedAt = Date.now();
     await user.save();
 

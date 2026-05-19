@@ -66,7 +66,7 @@ exports.sendWelcomeEmail = async (email, name) => {
 };
 
 // ── Password Reset Email ─────────────────────────────────────────────────────
-exports.sendPasswordResetEmail = async (email, resetUrl) => {
+exports.sendPasswordResetEmail = async (email, resetUrl, resetToken) => {
   try {
     await sendEmail({
       to: email,
@@ -82,6 +82,12 @@ exports.sendPasswordResetEmail = async (email, resetUrl) => {
               Reset Password
             </a>
           </div>
+          
+          <div style="background:#F3F4F6;padding:15px;border-radius:8px;margin:20px 0;word-break:break-all;font-family:monospace;font-size:14px;color:#374151">
+            <strong>Your Reset Token:</strong><br/>
+            <code style="font-weight:bold;color:#2563EB">${resetToken}</code>
+          </div>
+
           <p style="color:#6B7280;font-size:13px">
             Or copy this link:<br/>
             <a href="${resetUrl}">${resetUrl}</a>
