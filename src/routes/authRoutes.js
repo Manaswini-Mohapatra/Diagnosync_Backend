@@ -22,9 +22,7 @@ const {
   validate
 } = require('../middleware/validation');
 
-// ── Public routes ──────────────────────────────────────────────────────────
-
-// POST /api/auth/register
+// Public routes
 router.post('/register', registerValidator, validate, register);
 
 // POST /api/auth/login
@@ -39,7 +37,7 @@ router.post('/verify-reset-token', verifyResetTokenValidator, validate, verifyRe
 // POST /api/auth/reset-password
 router.post('/reset-password', resetPasswordValidator, validate, resetPassword);
 
-// ── Protected routes ───────────────────────────────────────────────────────
+// Protected routes
 
 // GET /api/auth/me  — lightweight token check + current user
 router.get('/me', protect, getMe);

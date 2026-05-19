@@ -126,14 +126,12 @@ exports.getMe = async (req, res) => {
   });
 };
 
-// ── POST /api/auth/forgot-password ────────────────────────────────────────
+// POST /api/auth/forgot-password
 exports.forgotPassword = async (req, res, next) => {
   try {
     const { email } = req.body;
-
     const user = await User.findOne({ email });
 
-    // Always respond 200 — don't leak whether email exists
     if (!user) {
       return res.status(200).json({
         success: true,
@@ -141,18 +139,13 @@ exports.forgotPassword = async (req, res, next) => {
       });
     }
 
-    // Generate a cryptographically secure random token (unhashed raw string)
     const rawToken = crypto.randomBytes(32).toString('hex');
-
-    // Hash the token using SHA-256 to store in the database
     const hashedToken = crypto.createHash('sha256').update(rawToken).digest('hex');
 
-    // Save the hashed token and a 15-minute expiration time
     user.resetPasswordToken = hashedToken;
-    user.resetPasswordExpires = Date.now() + 15 * 60 * 1000; // 15 minutes
+    user.resetPasswordExpires = Date.now() + 15 * 60 * 1000;
     await user.save();
 
-    // Build the reset URL pointing to our frontend page dynamically using the raw token
     let clientOrigin = req.get('origin');
     if (!clientOrigin) {
       const referer = req.get('referer');
@@ -171,15 +164,8 @@ exports.forgotPassword = async (req, res, next) => {
     const cleanOrigin = clientOrigin.replace(/\/$/, '');
     const resetUrl = `${cleanOrigin}/password-reset?token=${rawToken}`;
 
-    // Log the raw token and link to console for easy testing/debugging
-    console.log('\n==================================================');
-    console.log(`🔑 SECURE PASSWORD RESET GENERATED FOR: ${email}`);
-    console.log(`Raw Token: ${rawToken}`);
-    console.log(`Hashed Token (DB): ${hashedToken}`);
-    console.log(`Reset Link: ${resetUrl}`);
-    console.log('==================================================\n');
+    console.log(`Password reset requested for ${email}: ${resetUrl}`);
 
-    // Non-blocking — send via Mailtrap (dev) or real SMTP (production)
     sendPasswordResetEmail(email, resetUrl, rawToken).catch((err) =>
       console.error('Failed to send reset email:', err.message)
     );
@@ -189,7 +175,6 @@ exports.forgotPassword = async (req, res, next) => {
       message: 'If that email exists, a reset link has been sent'
     };
 
-    // For testing/development: return the raw token in the JSON response
     if (process.env.NODE_ENV !== 'production') {
       responsePayload.token = rawToken;
     }
@@ -200,19 +185,15 @@ exports.forgotPassword = async (req, res, next) => {
   }
 };
 
-// ── POST /api/auth/verify-reset-token ──────────────────────────────────────
+// POST /api/auth/verify-reset-token
 exports.verifyResetToken = async (req, res, next) => {
   try {
     const { token } = req.body;
-
     if (!token) {
       return res.status(400).json({ success: false, error: 'Reset token is required' });
     }
 
-    // Hash the raw token to compare it to the hashed DB token
     const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
-
-    // Find the user with a matching hashed token that is not expired
     const user = await User.findOne({
       resetPasswordToken: hashedToken,
       resetPasswordExpires: { $gt: Date.now() }
@@ -228,10 +209,9 @@ exports.verifyResetToken = async (req, res, next) => {
   }
 };
 
-// ── POST /api/auth/reset-password ─────────────────────────────────────────
+// POST /api/auth/reset-password
 exports.resetPassword = async (req, res, next) => {
   try {
-    // Accept 'newPassword' (sent by frontend PasswordReset.jsx) or legacy 'password'
     const { token, password, newPassword } = req.body;
     const actualPassword = newPassword || password;
 
@@ -243,10 +223,7 @@ exports.resetPassword = async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'New password is required' });
     }
 
-    // Hash the raw token to compare with DB
     const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
-
-    // Find the user with a matching hashed token that is not expired
     const user = await User.findOne({
       resetPasswordToken: hashedToken,
       resetPasswordExpires: { $gt: Date.now() }

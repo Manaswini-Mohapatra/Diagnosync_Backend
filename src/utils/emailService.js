@@ -65,7 +65,7 @@ exports.sendWelcomeEmail = async (email, name) => {
   }
 };
 
-// ── Password Reset Email ─────────────────────────────────────────────────────
+// Password Reset Email
 exports.sendPasswordResetEmail = async (email, resetUrl, resetToken) => {
   try {
     await sendEmail({

@@ -84,7 +84,7 @@ exports.verifyResetTokenValidator = [
     .notEmpty().withMessage('Reset token is required'),
 ];
 
-// ── User Update Validators ─────────────────────────────────────────────────
+// User Update Validators
 
 exports.updateUserValidator = [
   body('name')
