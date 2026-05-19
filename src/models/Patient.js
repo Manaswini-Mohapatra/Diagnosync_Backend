@@ -8,11 +8,10 @@ const patientSchema = new mongoose.Schema({
     unique: true
   },
 
-  // ── Physical info ──────────────────────────────────────────────────────────
-  // PatientRegistrationForm Step 1
-  age: { type: Number, min: 0, max: 120 },  // stored directly
-  height: Number,           // cm
-  weight: Number,           // kg
+
+  age: { type: Number, min: 0, max: 120 },  
+  height: Number,           
+  weight: Number,           
   bloodType: {
     type: String,
     enum: ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-', '']
@@ -21,25 +20,22 @@ const patientSchema = new mongoose.Schema({
     type: String,
     enum: ['male', 'female', 'other', '']
   },
-  dateOfBirth: Date,        // collected in SignUp as 'dob'
+  dateOfBirth: Date,       
 
-  // ── Medical history ────────────────────────────────────────────────────────
-  // PatientRegistrationForm Step 2
-  // Frontend field name: 'conditions'  →  stored as: 'medicalConditions'
+
   medicalConditions: [String],
   allergies: [String],
   surgeries: [String],
   familyHistory: String,
-  medications: [String],    // ← Added: current medications the patient is on
+  medications: [String],  
 
-  // ── Lifestyle ──────────────────────────────────────────────────────────────
-  // PatientRegistrationForm Step 3
+
   smokingStatus: {
     type: String,
     enum: ['never', 'former', 'current', 'occasional', ''],
     default: 'never'
   },
-  alcoholConsumption: {     // ← Added: was in frontend but missing from model
+  alcoholConsumption: {     
     type: String,
     enum: ['never', 'occasional', 'moderate', 'heavy', ''],
     default: 'never'
@@ -55,11 +51,10 @@ const patientSchema = new mongoose.Schema({
     default: 'balanced'
   },
 
-  // ── Emergency contact ──────────────────────────────────────────────────────
+
   emergencyContact: String,
   emergencyPhone: String,
 
-  // ── Medical Reports ────────────────────────────────────────────────────────
   reports: [{
     title: String,
     fileUrl: String,
@@ -68,7 +63,6 @@ const patientSchema = new mongoose.Schema({
     uploadedAt: { type: Date, default: Date.now }
   }],
 
-  // ── Calculated Health Score ────────────────────────────────────────────────
   healthScore: {
     score: { type: Number, default: 0 },
     status: { type: String, enum: ['Good', 'Moderate', 'Critical', 'None'], default: 'None' },
@@ -85,10 +79,10 @@ const patientSchema = new mongoose.Schema({
   }
 
 }, {
-  timestamps: true   // auto-manages createdAt + updatedAt
+  timestamps: true   
 });
 
-// Index for fast lookup by userId
+
 patientSchema.index({ userId: 1 });
 
 module.exports = mongoose.model('Patient', patientSchema);

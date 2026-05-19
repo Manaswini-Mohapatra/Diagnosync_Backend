@@ -8,7 +8,7 @@ app.get("/", (req, res) => {
   res.send("DiagnoSync Backend Running");
 });
 
-// ── Middleware ─────────────────────────────────────────────────────────────
+// Middleware 
 const corsMiddleware = require('./middleware/corsMiddleware');
 const errorHandler = require('./middleware/errorHandler');
 
@@ -19,26 +19,23 @@ app.use(express.urlencoded({ extended: true }));
 const apiLogger = require('./middleware/apiLogger');
 app.use(apiLogger);
 
-// ── Database ───────────────────────────────────────────────────────────────
+// Database 
 connectDB();
 
-// ── Routes — Phase 2 (Auth & Users) ───────────────────────────────────────
+// Routes 
 const authRoutes    = require('./routes/authRoutes');
 const userRoutes    = require('./routes/userRoutes');
 
 app.use('/api/auth',  authRoutes);
 app.use('/api/users', userRoutes);
 
-// ── Routes — Phase 3 (Patient & Doctor Profiles) ──────────────────────────
+
 const patientRoutes = require('./routes/patientRoutes');
 const doctorRoutes  = require('./routes/doctorRoutes');
 
 app.use('/api/patients', patientRoutes);
 app.use('/api/doctors',  doctorRoutes);
 
-// ── Stub router helper ─────────────────────────────────────────────────────
-// Returns 501 for any route on routes not yet implemented.
-// Remove each stub as the real router is written.
 const stubRouter = (label) => {
   const router = express.Router();
   router.all('*', (req, res) => {
@@ -61,8 +58,7 @@ const mlRoutes = require('./routes/mlRoutes');
 app.use('/api/ml', mlRoutes);
 const drugInteractionRoutes = require('./routes/drugInteractionRoutes');
 app.use('/api/interactions', drugInteractionRoutes);
-// /api/patients ─ live (Phase 3)
-// /api/doctors  ─ live (Phase 3)
+
 const medicationRoutes = require('./routes/medicationRoutes');
 app.use('/api/medications', medicationRoutes);
 
@@ -77,7 +73,8 @@ app.use('/api/notifications', notificationRoutes);
 
 const healthMetricsRoutes = require('./routes/healthMetricsRoutes');
 app.use('/api/health-metrics', healthMetricsRoutes);
-// ── Health check ───────────────────────────────────────────────────────────
+
+// Health check 
 app.get('/api/health', (req, res) => {
   res.json({
     success: true,
@@ -90,22 +87,22 @@ app.get('/api/health', (req, res) => {
 
 app.get('/api', (req, res) => {
   res.json({
-    message: "Diagnosync API is running 🚀"
+    message: "Diagnosync API is running"
   });
 });
 
-// ── 404 ────────────────────────────────────────────────────────────────────
+// 404 
 app.use('*', (req, res) => {
   res.status(404).json({ success: false, error: 'Route not found' });
 });
 
-// ── Global error handler (must be last) ───────────────────────────────────
+// Global error handler 
 app.use(errorHandler);
 
-// ── Start ──────────────────────────────────────────────────────────────────
+// Start 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-  console.log(`✅  DiagnoSync Backend running on port ${PORT}`);
-  console.log(`📡  API: http://localhost:${PORT}/api`);
-  console.log(`🏥  Health: http://localhost:${PORT}/api/health`);
+  console.log(`DiagnoSync Backend running on port ${PORT}`);
+  console.log(`API: http://localhost:${PORT}/api`);
+  console.log(`Health: http://localhost:${PORT}/api/health`);
 });

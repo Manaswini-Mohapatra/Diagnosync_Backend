@@ -14,10 +14,8 @@ exports.checkInteractions = async (req, res, next) => {
       });
     }
 
-    // 1. Check interactions using utility
     const interactions = await checkDrugInteractions(drugs);
 
-    // 2. Generate comprehensive API response using utility
     const report = generateInteractionReport(drugs, interactions);
 
     res.status(200).json({

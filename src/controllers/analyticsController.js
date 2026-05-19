@@ -1,15 +1,15 @@
 const Appointment = require('../models/Appointment');
 const mongoose = require('mongoose');
 
-// ── GET /api/analytics/doctor ──────────────────────────────────────────────
+
 exports.getDoctorAnalytics = async (req, res, next) => {
   try {
     const doctorId = req.user._id;
     const { range } = req.query; // today, week, month
 
-    // Calculate startDate based on range
+ 
     const now = new Date();
-    let startDate = new Date(0); // Default: all time
+    let startDate = new Date(0); 
 
     if (range === 'today') {
       startDate = new Date(now.setHours(0, 0, 0, 0));
@@ -19,7 +19,7 @@ exports.getDoctorAnalytics = async (req, res, next) => {
       startDate = new Date(now.setMonth(now.getMonth() - 1));
     }
 
-    // 1. Summary Metrics
+    // Summary Metrics
     const appointments = await Appointment.find({
       doctorId,
       status: { $ne: 'cancelled' }
@@ -36,8 +36,7 @@ exports.getDoctorAnalytics = async (req, res, next) => {
     const totalDuration = completedApts.reduce((acc, curr) => acc + (curr.duration || 30), 0);
     const avgDuration = completedApts.length > 0 ? Math.round(totalDuration / completedApts.length) : 0;
 
-    // 2. Trends (Last 7 or 30 days)
-    // We'll group by date string YYYY-MM-DD
+    // Trends (Last 7 or 30 days)
     const trendData = await Appointment.aggregate([
       {
         $match: {
@@ -55,13 +54,13 @@ exports.getDoctorAnalytics = async (req, res, next) => {
       { $sort: { _id: 1 } }
     ]);
 
-    // Format trend data for Recharts (ensure no gaps)
+    // Formatted trend data
     const formattedTrends = trendData.map(item => ({
       date: item._id,
       consultations: item.count
     }));
 
-    // 3. Distribution (Video vs In-person)
+    // Distribution (Video vs In-person)
     const typeDistribution = await Appointment.aggregate([
       {
         $match: {
@@ -82,8 +81,7 @@ exports.getDoctorAnalytics = async (req, res, next) => {
       value: item.count
     }));
 
-    // 4. Patient Retention
-    // Patients with >= 2 non-cancelled appointments
+    // Patient Retention
     const patientStats = await Appointment.aggregate([
       {
         $match: {

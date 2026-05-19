@@ -3,7 +3,6 @@ const User    = require('../models/User');
 const cloudinary = require('../config/cloudinary');
 const streamifier = require('streamifier');
 
-// ── Helper: build safe user+profile response ───────────────────────────────
 const buildProfile = (user, patient) => ({
   user: {
     _id:           user._id,
@@ -14,18 +13,18 @@ const buildProfile = (user, patient) => ({
     emailVerified: user.emailVerified,
     createdAt:     user.createdAt
   },
-  // Convert Mongoose doc → plain object so all fields (incl. reports[]) serialize correctly
+
   profile: patient ? (patient.toObject ? patient.toObject() : patient) : null
 });
 
-// ── Helper: Calculate Health Score ─────────────────────────────────────────
+//Health score
 const calculateHealthScore = (patient) => {
   let score = 100;
   let bmiPenalty = 0, diseasePenalty = 0, allergyPenalty = 0;
   let familyHistoryPenalty = 0, smokingPenalty = 0, exercisePenalty = 0;
   let bmi = 0;
 
-  // 1. BMI
+  //  BMI
   if (patient.height && patient.weight) {
     const heightM = patient.height / 100;
     bmi = Number((patient.weight / (heightM * heightM)).toFixed(1));
@@ -35,7 +34,7 @@ const calculateHealthScore = (patient) => {
     }
   }
 
-  // 2. Diseases
+  //  Diseases
   if (patient.medicalConditions && patient.medicalConditions.length > 0) {
     const conds = patient.medicalConditions.map(c => c.toLowerCase());
     if (conds.includes('diabetes')) diseasePenalty += 15;
@@ -44,13 +43,13 @@ const calculateHealthScore = (patient) => {
     score -= diseasePenalty;
   }
 
-  // 3. Allergies
+  //  Allergies
   if (patient.allergies && patient.allergies.length > 0) {
     allergyPenalty = patient.allergies.length * 2;
     score -= allergyPenalty;
   }
 
-  // 4. Family History
+  //  Family History
   if (patient.familyHistory) {
     const fh = patient.familyHistory.toLowerCase();
     if (fh.includes('heart disease')) familyHistoryPenalty += 10;
@@ -59,32 +58,32 @@ const calculateHealthScore = (patient) => {
     score -= familyHistoryPenalty;
   }
 
-  // 5. Smoking
+  //  Smoking
   if (patient.smokingStatus) {
     if (patient.smokingStatus === 'current') { smokingPenalty = 5; score -= smokingPenalty; }
     else if (patient.smokingStatus === 'former') { smokingPenalty = 2; score -= smokingPenalty; }
     else if (patient.smokingStatus === 'never') { smokingPenalty = -10; score -= smokingPenalty; } // -(-10) = +10
   }
 
-  // 6. Exercise
+  //  Exercise
   if (patient.exerciseFrequency) {
     if (patient.exerciseFrequency === 'sedentary') { exercisePenalty = 10; score -= exercisePenalty; }
     else if (patient.exerciseFrequency === 'light') { exercisePenalty = 5; score -= exercisePenalty; }
-    else if (patient.exerciseFrequency === 'vigorous') { exercisePenalty = -10; score -= exercisePenalty; } // -(-10) = +10
+    else if (patient.exerciseFrequency === 'vigorous') { exercisePenalty = -10; score -= exercisePenalty; } 
   }
 
-  // 7. Age adjustment (max ±5 points)
+  //  Age adjustment
   let agePenalty = 0;
   if (patient.age) {
-    if (patient.age < 30)      agePenalty = -5;  // youth bonus +5
-    else if (patient.age < 45) agePenalty = 0;   // neutral
-    else if (patient.age < 60) agePenalty = 2;   // mild: -2
-    else if (patient.age < 75) agePenalty = 4;   // moderate: -4
-    else                        agePenalty = 5;  // senior: -5
+    if (patient.age < 30)      agePenalty = -5;  
+    else if (patient.age < 45) agePenalty = 0;   
+    else if (patient.age < 60) agePenalty = 2;  
+    else if (patient.age < 75) agePenalty = 4;  
+    else                        agePenalty = 5;  
     score -= agePenalty;
   }
 
-  // Clamp Score
+  //  Score
   score = Math.max(0, Math.min(score, 100));
 
   let status = 'Critical';
@@ -107,13 +106,12 @@ const calculateHealthScore = (patient) => {
   };
 };
 
-// ── GET /api/patients/me ───────────────────────────────────────────────────
-// PatientProfilePage — fetch own profile
+
 exports.getMyProfile = async (req, res, next) => {
   try {
     let patient = await Patient.findOne({ userId: req.user._id });
     
-    // dynamically ensure health score exists
+
     if (patient && (!patient.healthScore || patient.healthScore.status === 'None')) {
       patient.healthScore = calculateHealthScore(patient);
       await patient.save();
@@ -128,15 +126,13 @@ exports.getMyProfile = async (req, res, next) => {
   }
 };
 
-// ── PUT /api/patients/me ───────────────────────────────────────────────────
-// PatientRegistrationForm — save/update extended health profile
-// Frontend field 'conditions' is mapped to 'medicalConditions'
+
 exports.updateMyProfile = async (req, res, next) => {
   try {
     const {
       age, height, weight, bloodType, gender, dateOfBirth,
-      conditions,          // frontend sends 'conditions'
-      medicalConditions,   // also accept direct field name
+      conditions,          
+      medicalConditions,  
       allergies, surgeries, familyHistory, medications,
       smokingStatus, alcoholConsumption, exerciseFrequency, diet,
       emergencyContact, emergencyPhone
@@ -145,7 +141,6 @@ exports.updateMyProfile = async (req, res, next) => {
     let patient = await Patient.findOne({ userId: req.user._id });
     if (!patient) patient = new Patient({ userId: req.user._id });
 
-    // Apply updates
     if (age !== undefined) patient.age = age === "" ? null : age;
     if (height !== undefined) patient.height = height === "" ? null : height;
     if (weight !== undefined) patient.weight = weight === "" ? null : weight;
@@ -166,7 +161,6 @@ exports.updateMyProfile = async (req, res, next) => {
     if (emergencyContact !== undefined) patient.emergencyContact = emergencyContact;
     if (emergencyPhone !== undefined) patient.emergencyPhone = emergencyPhone;
 
-    // Calculate score with updated data
     patient.healthScore = calculateHealthScore(patient);
 
     await patient.save();
@@ -186,14 +180,12 @@ exports.updateMyProfile = async (req, res, next) => {
   }
 };
 
-// ── GET /api/patients ──────────────────────────────────────────────────────
-// PatientList.jsx — doctor sees their patients (patients who booked with them)
-// For MVP: returns all patients with basic User info
+
 exports.getAllPatients = async (req, res, next) => {
   try {
     const { page = 1, limit = 10, search = '' } = req.query;
 
-    // Build user search filter
+
     const userFilter = { role: 'patient', isActive: true };
     if (search) {
       userFilter.$or = [
@@ -208,7 +200,7 @@ exports.getAllPatients = async (req, res, next) => {
       .limit(Number(limit))
       .sort({ name: 1 });
 
-    // Fetch patient profiles for these users
+
     const userIds = users.map(u => u._id);
     const profiles = await Patient.find({ userId: { $in: userIds } });
     const profileMap = {};
@@ -237,8 +229,7 @@ exports.getAllPatients = async (req, res, next) => {
   }
 };
 
-// ── GET /api/patients/:id ──────────────────────────────────────────────────
-// Doctor views a specific patient's full profile
+
 exports.getPatientById = async (req, res, next) => {
   try {
     const user = await User.findOne({
@@ -262,8 +253,7 @@ exports.getPatientById = async (req, res, next) => {
   }
 };
 
-// ── POST /api/patients/me/reports ──────────────────────────────────────────
-// Uploads a report to Cloudinary and saves URL in patient profile
+
 exports.uploadReport = async (req, res, next) => {
   try {
     const { title } = req.body;
@@ -296,7 +286,7 @@ exports.uploadReport = async (req, res, next) => {
             uploadedAt: new Date()
           };
 
-          // Atomic push — upserts the patient document if it doesn't exist yet
+
           const updated = await Patient.findOneAndUpdate(
             { userId: req.user._id },
             { $push: { reports: newReport } },
@@ -320,8 +310,7 @@ exports.uploadReport = async (req, res, next) => {
   }
 };
 
-// ── DELETE /api/patients/me/reports/:reportId ──────────────────────────────
-// Permanently removes a report from MongoDB and Cloudinary
+
 exports.deleteReport = async (req, res, next) => {
   try {
     const patient = await Patient.findOne({ userId: req.user._id });
@@ -334,7 +323,6 @@ exports.deleteReport = async (req, res, next) => {
       return res.status(404).json({ success: false, error: 'Report not found' });
     }
 
-    // 1. Delete from Cloudinary if publicId exists
     if (report.publicId) {
       try {
         if (process.env.CLOUDINARY_API_KEY) {
@@ -342,11 +330,9 @@ exports.deleteReport = async (req, res, next) => {
         }
       } catch (cloudErr) {
         console.error("Cloudinary Deletion Error:", cloudErr);
-        // Continue anyway to keep DB in sync
       }
     }
 
-    // 2. Remove from Mongoose array
     patient.reports.pull(req.params.reportId);
     await patient.save();
 

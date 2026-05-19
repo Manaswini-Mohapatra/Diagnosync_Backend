@@ -1,17 +1,15 @@
 const HealthMetrics = require('../models/HealthMetrics');
 
-// ── Helpers ────────────────────────────────────────────────────────────────
+
 const verifyOwnership = (patientId, user) => {
   if (user.role === 'admin' || user.role === 'doctor') return true;
   return patientId.toString() === user._id.toString();
 };
 
-// ── POST /api/health-metrics ───────────────────────────────────────────────
+
 exports.createHealthMetric = async (req, res, next) => {
   try {
     const data = req.body;
-
-    // Security: If patient, force patientId to be their own ID
     if (req.user.role === 'patient') {
       data.patientId = req.user._id;
       data.recordedBy = 'patient';
@@ -35,7 +33,7 @@ exports.createHealthMetric = async (req, res, next) => {
   }
 };
 
-// ── GET /api/health-metrics/patient/:patientId ─────────────────────────────
+
 exports.getPatientMetrics = async (req, res, next) => {
   try {
     const { patientId } = req.params;
@@ -67,7 +65,7 @@ exports.getPatientMetrics = async (req, res, next) => {
   }
 };
 
-// ── GET /api/health-metrics/patient/:patientId/latest ──────────────────────
+
 exports.getLatestMetric = async (req, res, next) => {
   try {
     const { patientId } = req.params;
@@ -91,7 +89,7 @@ exports.getLatestMetric = async (req, res, next) => {
   }
 };
 
-// ── PATCH /api/health-metrics/:id ──────────────────────────────────────────
+
 exports.updateHealthMetric = async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -119,7 +117,7 @@ exports.updateHealthMetric = async (req, res, next) => {
   }
 };
 
-// ── DELETE /api/health-metrics/:id ─────────────────────────────────────────
+
 exports.deleteHealthMetric = async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -142,7 +140,7 @@ exports.deleteHealthMetric = async (req, res, next) => {
   }
 };
 
-// ── GET /api/health-metrics/patient/:patientId/summary ─────────────────────
+
 exports.getMetricsSummary = async (req, res, next) => {
   try {
     const { patientId } = req.params;

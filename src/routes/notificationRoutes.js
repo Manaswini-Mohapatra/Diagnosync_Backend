@@ -5,7 +5,7 @@ const Notification = require('../models/Notification');
 
 const router = express.Router();
 
-router.use(protect); // All routes require authentication
+router.use(protect);
 
 router.get('/', notificationController.getUserNotifications);
 router.get('/unread-count', notificationController.getUnreadCount);
@@ -14,7 +14,6 @@ router.patch('/all/read', notificationController.markAllAsRead);
 router.patch('/:id/read', notificationController.markAsRead);
 router.delete('/:id', notificationController.deleteNotification);
 
-// ── DEV ONLY: Create a test notification for the logged-in user ──
 if (process.env.NODE_ENV !== 'production') {
   router.post('/test', async (req, res, next) => {
     try {

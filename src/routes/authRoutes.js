@@ -39,10 +39,10 @@ router.post('/reset-password', resetPasswordValidator, validate, resetPassword);
 
 // Protected routes
 
-// GET /api/auth/me  — lightweight token check + current user
+// GET /api/auth/me lightweight token check + current user
 router.get('/me', protect, getMe);
 
-// POST /api/auth/refresh  — get a fresh token (extend session)
+// POST /api/auth/refresh get a fresh token (extend session)
 router.post('/refresh', protect, refreshToken);
 
 module.exports = router;

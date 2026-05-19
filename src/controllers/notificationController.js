@@ -1,7 +1,5 @@
 const Notification = require('../models/Notification');
 
-// ── INTERNAL HELPER ────────────────────────────────────────────────────────
-// Used by other controllers to seamlessly dispatch notifications
 exports.createSystemNotification = async ({ userId, type, title, message, priority = 'medium', actionUrl }) => {
   try {
     const notification = await Notification.create({
@@ -19,8 +17,7 @@ exports.createSystemNotification = async ({ userId, type, title, message, priori
   }
 };
 
-// ── GET /api/notifications ─────────────────────────────────────────────────
-// Get user notifications (using req.user securely)
+
 exports.getUserNotifications = async (req, res, next) => {
   try {
     const { read } = req.query;
@@ -40,7 +37,7 @@ exports.getUserNotifications = async (req, res, next) => {
   }
 };
 
-// ── GET /api/notifications/unread-count ────────────────────────────────────
+
 exports.getUnreadCount = async (req, res, next) => {
   try {
     const unreadCount = await Notification.countDocuments({
@@ -57,7 +54,7 @@ exports.getUnreadCount = async (req, res, next) => {
   }
 };
 
-// ── PATCH /api/notifications/:id/read ──────────────────────────────────────
+
 exports.markAsRead = async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -81,7 +78,7 @@ exports.markAsRead = async (req, res, next) => {
   }
 };
 
-// ── PATCH /api/notifications/read-all ──────────────────────────────────────
+
 exports.markAllAsRead = async (req, res, next) => {
   try {
     await Notification.updateMany(
@@ -98,7 +95,7 @@ exports.markAllAsRead = async (req, res, next) => {
   }
 };
 
-// ── DELETE /api/notifications/:id ──────────────────────────────────────────
+
 exports.deleteNotification = async (req, res, next) => {
   try {
     const { id } = req.params;

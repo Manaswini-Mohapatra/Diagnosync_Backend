@@ -3,12 +3,12 @@ const SystemLog = require('../models/SystemLog');
 const apiLogger = (req, res, next) => {
   const start = Date.now();
   
-  // We only want to log when the response is finished
+  //log when the response is finished
   res.on('finish', async () => {
     try {
       const responseTime = Date.now() - start;
       
-      // Skip logging the frequent health checks to avoid DB bloat
+      
       if (req.originalUrl.includes('/api/health')) return;
 
       const logEntry = {
@@ -18,7 +18,7 @@ const apiLogger = (req, res, next) => {
         responseTime,
         userAgent: req.headers['user-agent'] || 'unknown',
         ip: req.ip || req.connection.remoteAddress,
-        error: res.locals.errorMessage || null // We can set this in errorHandler
+        error: res.locals.errorMessage || null 
       };
 
       await SystemLog.create(logEntry);

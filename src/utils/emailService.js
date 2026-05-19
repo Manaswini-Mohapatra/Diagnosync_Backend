@@ -1,16 +1,6 @@
-/**
- * emailService.js — Nodemailer + Mailtrap (dev) / SMTP (production)
- *
- * Reads credentials from environment variables:
- *   EMAIL_HOST, EMAIL_PORT, EMAIL_USER, EMAIL_PASS
- *
- * In development: emails go to Mailtrap inbox (never reach real users)
- * In production:  swap env vars to real SMTP (SendGrid, Gmail, etc.)
- */
-
 const nodemailer = require('nodemailer');
 
-// ── Create transporter (singleton) ───────────────────────────────────────────
+
 const createTransporter = () => {
   return nodemailer.createTransport({
     host:   process.env.EMAIL_HOST,
@@ -22,7 +12,7 @@ const createTransporter = () => {
   });
 };
 
-// ── Helper: send any email ───────────────────────────────────────────────────
+
 const sendEmail = async ({ to, subject, html, text }) => {
   const transporter = createTransporter();
   const info = await transporter.sendMail({
@@ -36,7 +26,7 @@ const sendEmail = async ({ to, subject, html, text }) => {
   return info;
 };
 
-// ── Welcome Email ────────────────────────────────────────────────────────────
+
 exports.sendWelcomeEmail = async (email, name) => {
   try {
     await sendEmail({
@@ -60,12 +50,12 @@ exports.sendWelcomeEmail = async (email, name) => {
     });
     return true;
   } catch (error) {
-    console.error('❌ Error sending welcome email:', error.message);
+    console.error(' Error sending welcome email:', error.message);
     return false;
   }
 };
 
-// Password Reset Email
+
 exports.sendPasswordResetEmail = async (email, resetUrl, resetToken) => {
   try {
     await sendEmail({
@@ -102,12 +92,12 @@ exports.sendPasswordResetEmail = async (email, resetUrl, resetToken) => {
     });
     return true;
   } catch (error) {
-    console.error('❌ Error sending password reset email:', error.message);
+    console.error(' Error sending password reset email:', error.message);
     return false;
   }
 };
 
-// ── Appointment Reminder ─────────────────────────────────────────────────────
+
 exports.sendAppointmentReminder = async (email, appointmentDetails) => {
   try {
     await sendEmail({
@@ -130,12 +120,12 @@ exports.sendAppointmentReminder = async (email, appointmentDetails) => {
     });
     return true;
   } catch (error) {
-    console.error('❌ Error sending appointment reminder:', error.message);
+    console.error(' Error sending appointment reminder:', error.message);
     return false;
   }
 };
 
-// ── Prescription Notification ────────────────────────────────────────────────
+
 exports.sendPrescriptionNotification = async (email, prescriptionDetails) => {
   try {
     await sendEmail({
@@ -157,12 +147,10 @@ exports.sendPrescriptionNotification = async (email, prescriptionDetails) => {
     });
     return true;
   } catch (error) {
-    console.error('❌ Error sending prescription notification:', error.message);
+    console.error(' Error sending prescription notification:', error.message);
     return false;
   }
 };
-
-// ── Generic Notification ─────────────────────────────────────────────────────
 exports.sendNotification = async (email, subject, message) => {
   try {
     await sendEmail({
@@ -179,7 +167,7 @@ exports.sendNotification = async (email, subject, message) => {
     });
     return true;
   } catch (error) {
-    console.error('❌ Error sending notification:', error.message);
+    console.error(' Error sending notification:', error.message);
     return false;
   }
 };

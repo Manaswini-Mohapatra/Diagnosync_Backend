@@ -2,7 +2,7 @@ const Prescription = require('../models/Prescription');
 const User = require('../models/User');
 const { createSystemNotification } = require('./notificationController');
 
-// ── Helper: format prescription ───────────────────────────────────────────
+
 const formatPrescription = (pres, patientUser, doctorUser) => ({
   id: pres._id,
   patientId: (patientUser?._id || pres.patientId)?.toString(),
@@ -28,8 +28,6 @@ const formatPrescription = (pres, patientUser, doctorUser) => ({
   updatedAt: pres.updatedAt
 });
 
-// ── POST /api/prescriptions ────────────────────────────────────────────────
-// Doctor only. Creates new prescription
 exports.createPrescription = async (req, res, next) => {
   try {
     const {
@@ -42,10 +40,9 @@ exports.createPrescription = async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'Patient ID and Medication Name are required' });
     }
 
-    // Doctor ID comes from the authenticated user
     const doctorId = req.user._id;
 
-    // Verify patient exists
+
     const patientUser = await User.findOne({ _id: patientId, role: 'patient' });
     if (!patientUser) {
       return res.status(404).json({ success: false, error: 'Patient not found' });
@@ -90,8 +87,7 @@ exports.createPrescription = async (req, res, next) => {
   }
 };
 
-// ── GET /api/prescriptions ─────────────────────────────────────────────────
-// Role-aware list query for dashboards
+
 exports.getPrescriptions = async (req, res, next) => {
   try {
     const { status, patientId, page = 1, limit = 20 } = req.query;
@@ -100,8 +96,6 @@ exports.getPrescriptions = async (req, res, next) => {
     if (req.user.role === 'patient') {
       filter.patientId = req.user._id;
     } else if (req.user.role === 'doctor') {
-      // If patientId provided in query, doctor can view all for that patient
-      // Otherwise, doctor sees only prescriptions they issued
       if (patientId) {
         filter.patientId = patientId;
       } else {
@@ -120,7 +114,6 @@ exports.getPrescriptions = async (req, res, next) => {
 
     const total = await Prescription.countDocuments(filter);
 
-    // Format response array using helper
     const populated = prescriptions.map(p => 
       formatPrescription(p, p.patientId, p.doctorId)
     );
@@ -137,20 +130,17 @@ exports.getPrescriptions = async (req, res, next) => {
   }
 };
 
-// ── PATCH /api/prescriptions/:id ───────────────────────────────────────────
-// Doctor updates prescription details
+
 exports.updatePrescription = async (req, res, next) => {
   try {
     const pres = await Prescription.findById(req.params.id);
     if (!pres) return res.status(404).json({ success: false, error: 'Prescription not found' });
 
-    // Ensure doctor owns this prescription
     if (pres.doctorId.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
       return res.status(403).json({ success: false, error: 'Access denied: You can only manage your own prescriptions' });
     }
 
     const updates = req.body;
-    // Prevent doctorId/patientId/prescriptionNumber from being changed via this endpoint for safety
     delete updates.doctorId;
     delete updates.patientId;
     delete updates.prescriptionNumber;
@@ -172,7 +162,7 @@ exports.updatePrescription = async (req, res, next) => {
   }
 };
 
-// ── DELETE /api/prescriptions/:id ──────────────────────────────────────────
+
 // Doctor deletes prescription
 exports.deletePrescription = async (req, res, next) => {
   try {
@@ -195,7 +185,7 @@ exports.deletePrescription = async (req, res, next) => {
   }
 };
 
-// ── PATCH /api/prescriptions/:id/status ───────────────────────────────────
+
 // Doctor updates status
 exports.updateStatus = async (req, res, next) => {
   try {
@@ -204,7 +194,7 @@ exports.updateStatus = async (req, res, next) => {
 
     if (!pres) return res.status(404).json({ success: false, error: 'Prescription not found' });
 
-    // Ensure doctor owns this prescription or is admin
+    // Ensure doctor owns this prescription
     if (pres.doctorId.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
       return res.status(403).json({ success: false, error: 'Access denied' });
     }
@@ -218,7 +208,7 @@ exports.updateStatus = async (req, res, next) => {
   }
 };
 
-// ── POST /api/prescriptions/:id/refill ─────────────────────────────────────
+
 // Patient requests a refill
 exports.requestRefill = async (req, res, next) => {
   try {

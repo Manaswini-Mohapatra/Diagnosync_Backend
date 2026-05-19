@@ -1,6 +1,5 @@
 const DrugInteraction = require('../models/DrugInteraction');
 
-// Check interactions between drugs
 exports.checkDrugInteractions = async (drugs) => {
   try {
     const interactions = [];
@@ -26,7 +25,6 @@ exports.checkDrugInteractions = async (drugs) => {
   }
 };
 
-// Get severity level
 exports.getSeverityLevel = (interactions) => {
   if (interactions.length === 0) return 'safe';
 
@@ -39,7 +37,6 @@ exports.getSeverityLevel = (interactions) => {
   return 'none';
 };
 
-// Get recommendations
 exports.getRecommendations = (interactions) => {
   const recommendations = [];
 
@@ -52,7 +49,6 @@ exports.getRecommendations = (interactions) => {
   return recommendations;
 };
 
-// Get alternatives
 exports.getAlternatives = (interactions) => {
   const alternatives = [];
 
@@ -74,7 +70,6 @@ exports.getAlternatives = (interactions) => {
   return alternatives;
 };
 
-// Generate interaction report
 exports.generateInteractionReport = (drugs, interactions) => {
   const report = {
     drugs,

@@ -3,17 +3,14 @@ const User        = require('../models/User');
 const Doctor      = require('../models/Doctor');
 const { createSystemNotification } = require('./notificationController');
 
-// ── Helper: format appointment for response ────────────────────────────────
-// Populates patient and doctor info inline so frontend gets everything in one call
 const formatAppointment = (apt, patientUser, doctorUser) => ({
   id:            apt._id,
-  _id:           apt._id,   // keep both so frontend can use either
-  // Patient info (matches DoctorAppointmentsPage.jsx fields)
+  _id:           apt._id,
   patientId:     apt.patientId,
   patientName:   patientUser?.name  || 'Unknown',
   patientEmail:  patientUser?.email || '',
   patientPhone:  patientUser?.phone || '',
-  // Doctor info (matches PatientDashboard / AppointmentBooking fields)
+
   doctorId:      apt.doctorId,
   doctor: {
     _id:            apt.doctorId,
@@ -39,7 +36,6 @@ const formatAppointment = (apt, patientUser, doctorUser) => ({
   updatedAt:     apt.updatedAt
 });
 
-// ── Helper: bulk populate appointments ────────────────────────────────────
 const populateAppointments = async (appointments) => {
   const patientIds = [...new Set(appointments.map(a => a.patientId?.toString()))];
   const doctorIds  = [...new Set(appointments.map(a => a.doctorId?.toString()))];
@@ -59,8 +55,6 @@ const populateAppointments = async (appointments) => {
   );
 };
 
-// ── POST /api/appointments ─────────────────────────────────────────────────
-// Patient books an appointment with a doctor (AppointmentBooking.jsx)
 exports.createAppointment = async (req, res, next) => {
   try {
     const { doctorId, date, time, type, reason, notes, duration } = req.body;
@@ -78,7 +72,7 @@ exports.createAppointment = async (req, res, next) => {
       return res.status(404).json({ success: false, error: 'Doctor not found' });
     }
 
-    // ── Pre-check: Double booking prevention ──
+    // Pre-check: Double booking prevention
     const appointmentDate = new Date(date);
     const existingAppointment = await Appointment.findOne({
       doctorId,
@@ -108,7 +102,6 @@ exports.createAppointment = async (req, res, next) => {
 
     const formatted = formatAppointment(appointment, req.user, doctorUser);
 
-    // Notify Patient via the system
     await createSystemNotification({
       userId: req.user._id,
       type: 'appointment',
@@ -116,7 +109,6 @@ exports.createAppointment = async (req, res, next) => {
       message: `Your appointment with Dr. ${doctorUser.name} has been successfully scheduled for ${appointment.date.toLocaleDateString()} at ${appointment.time}.`
     });
 
-    // Notify Doctor via the system
     await createSystemNotification({
       userId: doctorId,
       type: 'appointment',
@@ -134,9 +126,6 @@ exports.createAppointment = async (req, res, next) => {
   }
 };
 
-// ── GET /api/appointments ──────────────────────────────────────────────────
-// Role-aware: patients see their own, doctors see their patients' appointments
-// Supports: ?status=scheduled  ?upcoming=true&hours=72  ?page=1&limit=50
 exports.getAppointments = async (req, res, next) => {
   try {
     const { status, page = 1, limit = 50, upcoming, hours = 72 } = req.query;
@@ -147,12 +136,8 @@ exports.getAppointments = async (req, res, next) => {
     } else if (req.user.role === 'doctor') {
       filter.doctorId = req.user._id;
     }
-    // admin sees all
-
     if (status) filter.status = status;
 
-    // ── Dashboard widget: ?upcoming=true&hours=72 ──
-    // Returns only appointments falling in the next N hours window
     if (upcoming === 'true') {
       const now = new Date();
       const windowEnd = new Date(now.getTime() + Number(hours) * 60 * 60 * 1000);
@@ -182,7 +167,6 @@ exports.getAppointments = async (req, res, next) => {
   }
 };
 
-// ── GET /api/appointments/:id ──────────────────────────────────────────────
 exports.getAppointmentById = async (req, res, next) => {
   try {
     const apt = await Appointment.findById(req.params.id);
@@ -214,8 +198,6 @@ exports.getAppointmentById = async (req, res, next) => {
   }
 };
 
-// ── PUT /api/appointments/:id ──────────────────────────────────────────────
-// Doctor edits appointment details (DoctorAppointmentsPage edit modal)
 exports.updateAppointment = async (req, res, next) => {
   try {
     const apt = await Appointment.findById(req.params.id);
@@ -223,7 +205,7 @@ exports.updateAppointment = async (req, res, next) => {
       return res.status(404).json({ success: false, error: 'Appointment not found' });
     }
 
-    // Only the doctor or admin can edit
+
     if (apt.doctorId.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
       return res.status(403).json({ success: false, error: 'Access denied' });
     }
@@ -260,8 +242,7 @@ exports.updateAppointment = async (req, res, next) => {
   }
 };
 
-// ── PATCH /api/appointments/:id/status ────────────────────────────────────
-// Doctor changes status: scheduled → in-progress → completed / cancelled
+
 exports.updateStatus = async (req, res, next) => {
   try {
     const { status } = req.body;
@@ -279,7 +260,6 @@ exports.updateStatus = async (req, res, next) => {
       return res.status(404).json({ success: false, error: 'Appointment not found' });
     }
 
-    // Patient can only cancel their own; doctor can change to any
     if (req.user.role === 'patient') {
       if (apt.patientId.toString() !== req.user._id.toString()) {
         return res.status(403).json({ success: false, error: 'Access denied' });
@@ -296,7 +276,7 @@ exports.updateStatus = async (req, res, next) => {
     apt.status = status;
     await apt.save();
 
-    // Notify BOTH parties about the status update
+
     await createSystemNotification({
       userId: apt.doctorId,
       type: 'appointment',
@@ -320,8 +300,7 @@ exports.updateStatus = async (req, res, next) => {
   }
 };
 
-// ── PATCH /api/appointments/:id/reminder ──────────────────────────────────
-// Doctor sends reminder to patient (DoctorAppointmentsPage "Send Reminder" button)
+
 exports.sendReminder = async (req, res, next) => {
   try {
     const apt = await Appointment.findById(req.params.id);
@@ -336,7 +315,6 @@ exports.sendReminder = async (req, res, next) => {
     apt.reminderSent = true;
     await apt.save();
 
-    // Trigger an urgent push/alert for the patient
     await createSystemNotification({
       userId: apt.patientId,
       type: 'reminder',
@@ -345,7 +323,7 @@ exports.sendReminder = async (req, res, next) => {
       message: `Reminder: You have an upcoming appointment on ${apt.date.toLocaleDateString()}. Please ensure you are ready and check your dashboard for details.`
     });
 
-    // TODO: send actual email/SMS when email service is set up
+
     res.status(200).json({
       success: true,
       message: 'Reminder sent to patient',
@@ -356,8 +334,7 @@ exports.sendReminder = async (req, res, next) => {
   }
 };
 
-// ── DELETE /api/appointments/:id ───────────────────────────────────────────
-// Permanently delete (cancelled appointments) or cancel active ones
+
 exports.deleteAppointment = async (req, res, next) => {
   try {
     const apt = await Appointment.findById(req.params.id);
@@ -408,8 +385,7 @@ exports.deleteAppointment = async (req, res, next) => {
   }
 };
 
-// ── PATCH /api/appointments/:id/rate ──────────────────────────────────────
-// Patient rates a completed appointment (1-5 stars + optional comment)
+
 exports.rateAppointment = async (req, res, next) => {
   try {
     const { score, comment = '' } = req.body;
@@ -421,17 +397,14 @@ exports.rateAppointment = async (req, res, next) => {
     const apt = await Appointment.findById(req.params.id);
     if (!apt) return res.status(404).json({ success: false, error: 'Appointment not found' });
 
-    // Only the patient who owns the appointment can rate it
+    
     if (apt.patientId.toString() !== req.user._id.toString()) {
       return res.status(403).json({ success: false, error: 'Access denied' });
     }
-
-    // Can only rate completed appointments
     if (apt.status !== 'completed') {
       return res.status(400).json({ success: false, error: 'Only completed appointments can be rated' });
     }
 
-    // Prevent re-rating
     if (apt.rating?.score) {
       return res.status(400).json({ success: false, error: 'You have already rated this appointment' });
     }
@@ -449,8 +422,7 @@ exports.rateAppointment = async (req, res, next) => {
   }
 };
 
-// ── PATCH /api/appointments/:id/reschedule ────────────────────────────────
-// Patient picks a new date + time for a scheduled appointment
+
 exports.rescheduleAppointment = async (req, res, next) => {
   try {
     const { date, time } = req.body;
@@ -476,7 +448,7 @@ exports.rescheduleAppointment = async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'Only scheduled appointments can be rescheduled' });
     }
 
-    // ── Pre-check: Double booking prevention for rescheduling ──
+      
     const existingAppointment = await Appointment.findOne({
       doctorId: apt.doctorId,
       date: newDate,

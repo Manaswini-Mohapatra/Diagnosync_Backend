@@ -1,19 +1,15 @@
-// database.js — MongoDB / Mongoose configuration constants
-// Used by database/connection.js via config import (or directly if needed)
-
 module.exports = {
-  uri: process.env.MONGODB_URI,         // full Atlas connection string from .env
+  uri: process.env.MONGODB_URI,         
 
   options: {
     useNewUrlParser: true,
     useUnifiedTopology: true,
-    maxPoolSize: 5,                      // keep pool lean for Atlas free tier (512 MB)
+    maxPoolSize: 5,                     
     serverSelectionTimeoutMS: 10000,
     socketTimeoutMS: 45000,
-    family: 4                            // force IPv4
+    family: 4                            
   },
-
-  // Collection / schema-level constants
+ 
   COLLECTION_NAMES: {
     USERS:            'users',
     PATIENTS:         'patients',

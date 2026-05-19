@@ -19,7 +19,7 @@ router.patch('/:id', restrictTo('doctor', 'admin'), prescriptionController.updat
 // DELETE: Remove prescription (Doctors only)
 router.delete('/:id', restrictTo('doctor', 'admin'), prescriptionController.deletePrescription);
 
-// PATCH: Update status (e.g. active -> completed/discontinued) (Doctors only)
+// PATCH: Update status (Doctors only)
 router.patch('/:id/status', restrictTo('doctor', 'admin'), prescriptionController.updateStatus);
 
 // POST: Request a refill (Patients only)

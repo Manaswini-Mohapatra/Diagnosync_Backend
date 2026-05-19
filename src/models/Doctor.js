@@ -1,20 +1,18 @@
 const mongoose = require('mongoose');
 
-// Sub-schema for uploaded verification documents
-// DoctorRegistrationForm Step 3 — stores metadata only (not the actual file)
-// Actual files should go to Cloudinary / file storage, not MongoDB (Atlas 512MB limit)
+
 const documentSchema = new mongoose.Schema({
   fileName:    { type: String, required: true },
-  fileType:    { type: String },           // MIME type e.g. 'application/pdf'
-  fileSize:    { type: Number },           // bytes
+  fileType:    { type: String },           
+  fileSize:    { type: Number },           
   documentType: {
     type: String,
     enum: ['certificate', 'license', 'degree', 'specialization', 'other'],
     default: 'certificate'
   },
   description: { type: String },
-  fileUrl:     { type: String },           // URL if stored on Cloudinary etc.
-  publicId:    { type: String },           // Cloudinary public_id for deletion
+  fileUrl:     { type: String },         
+  publicId:    { type: String },         
   uploadDate:  { type: Date, default: Date.now }
 }, { _id: true });
 
@@ -26,8 +24,7 @@ const doctorSchema = new mongoose.Schema({
     unique: true
   },
 
-  // ── License & affiliation ──────────────────────────────────────────────────
-  // DoctorRegistrationForm Step 1
+
   licenseNumber: {
     type: String,
     required: true,
@@ -38,16 +35,14 @@ const doctorSchema = new mongoose.Schema({
   hospitalAffiliation: String,
   yearsOfExperience: Number,
 
-  // ── Specialties & qualifications ───────────────────────────────────────────
-  // DoctorRegistrationForm Step 2
-  specialties: [String],      // array — frontend sends as array of selected items
+
+  specialties: [String],      
   qualifications: [String],
   languages: [String],
-  consultationFee: Number,    // stored as number; controller formats to '$100' for response
+  consultationFee: Number,    
   bio: String,
 
-  // ── Ratings ────────────────────────────────────────────────────────────────
-  // AppointmentBooking.jsx displays: rating (number) + reviewCount
+
   ratings: {
     type: Number,
     default: 0,
@@ -59,20 +54,14 @@ const doctorSchema = new mongoose.Schema({
     default: 0
   },
 
-  // ── Availability ───────────────────────────────────────────────────────────
-  // availableSlots used by AppointmentBooking Step 2 (time slot selection)
-  // Structure: { "monday": ["9:00 AM", "9:30 AM", ...], "tuesday": [...] }
+
   availableSlots: {
     type: mongoose.Schema.Types.Mixed,
     default: {}
   },
 
-  // ── Verification documents ─────────────────────────────────────────────────
-  // DoctorRegistrationForm Step 3 — metadata only, no file data in DB
+  
   documents: [documentSchema],
-
-  // ── Verification status ────────────────────────────────────────────────────
-  // Added: admin can mark doctors as verified after reviewing documents
   isVerified: {
     type: Boolean,
     default: false
@@ -84,10 +73,10 @@ const doctorSchema = new mongoose.Schema({
   }
 
 }, {
-  timestamps: true   // auto-manages createdAt + updatedAt
+  timestamps: true 
 });
 
-// Indexes
+
 doctorSchema.index({ userId: 1 });
 doctorSchema.index({ specialties: 1 });
 doctorSchema.index({ isVerified: 1 });

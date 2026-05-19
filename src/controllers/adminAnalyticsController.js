@@ -8,7 +8,7 @@ const SystemLog = require('../models/SystemLog');
 
 exports.getAdminDashboard = async (req, res, next) => {
   try {
-    const { range } = req.query; // 'weekly', 'monthly', 'yearly'
+    const { range } = req.query;
     const now = new Date();
     let startDate = new Date();
 
@@ -17,13 +17,12 @@ exports.getAdminDashboard = async (req, res, next) => {
     } else if (range === 'yearly') {
       startDate.setFullYear(now.getFullYear() - 1);
     } else {
-      // Default to monthly (last 30 days)
       startDate.setDate(now.getDate() - 30);
     }
 
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    // Run all independent queries concurrently
+    
     const [
       totalPatients,
       totalDoctors,
@@ -38,22 +37,16 @@ exports.getAdminDashboard = async (req, res, next) => {
       specializations,
       systemPerformance
     ] = await Promise.all([
-      // 1. Total Patients
       User.countDocuments({ role: 'patient' }),
 
-      // 2. Total Doctors
       User.countDocuments({ role: 'doctor' }),
 
-      // 3. Active Users (Users with activity in last 30 days - approximate by checking recent logins if we had them, or just all users for now)
       User.countDocuments({ isActive: true }),
 
-      // 4. New Users This Month
       User.countDocuments({ createdAt: { $gte: startOfMonth } }),
 
-      // 5. Total Symptom Analyses
       Prediction.countDocuments(),
 
-      // 6, 7, 8. Appointment Stats (Total, Video, In-Person, Statuses)
       Appointment.aggregate([
         {
           $group: {
@@ -68,7 +61,6 @@ exports.getAdminDashboard = async (req, res, next) => {
         }
       ]),
 
-      // 9. Symptom Analysis Trend (Area Chart)
       Prediction.aggregate([
         { $match: { createdAt: { $gte: startDate } } },
         {
@@ -80,7 +72,6 @@ exports.getAdminDashboard = async (req, res, next) => {
         { $sort: { _id: 1 } }
       ]),
 
-      // 10. Patient Retention
       Appointment.aggregate([
         { $match: { status: 'completed' } },
         {
@@ -98,7 +89,6 @@ exports.getAdminDashboard = async (req, res, next) => {
         }
       ]),
 
-      // 11. Most Consulted Doctors
       Appointment.aggregate([
         { $match: { status: 'completed' } },
         {
@@ -136,7 +126,6 @@ exports.getAdminDashboard = async (req, res, next) => {
         }
       ]),
 
-      // 12. User Growth Analytics
       User.aggregate([
         { $match: { createdAt: { $gte: startDate } } },
         {
@@ -151,7 +140,6 @@ exports.getAdminDashboard = async (req, res, next) => {
         { $sort: { "_id.date": 1 } }
       ]),
 
-      // 13. Specialization Analytics
       Doctor.aggregate([
         { $unwind: "$specialties" },
         {
@@ -163,7 +151,6 @@ exports.getAdminDashboard = async (req, res, next) => {
         { $match: { _id: { $ne: null } } }
       ]),
 
-      // 14. System Performance Analytics
       SystemLog.aggregate([
         { $match: { createdAt: { $gte: startDate } } },
         {

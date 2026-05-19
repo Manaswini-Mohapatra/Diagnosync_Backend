@@ -1,6 +1,5 @@
 const { body, validationResult } = require('express-validator');
 
-// ── Helper: runs validation and returns errors if any ──────────────────────
 exports.validate = (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -12,8 +11,6 @@ exports.validate = (req, res, next) => {
   }
   next();
 };
-
-// ── Auth Validators ────────────────────────────────────────────────────────
 
 exports.registerValidator = [
   body('name')
@@ -65,7 +62,6 @@ exports.resetPasswordValidator = [
   body('token')
     .notEmpty().withMessage('Reset token is required'),
 
-  // Accept either 'newPassword' (from frontend) or 'password' (legacy)
   body('newPassword')
     .optional()
     .isLength({ min: 8 }).withMessage('Password must be at least 8 characters')
@@ -84,7 +80,6 @@ exports.verifyResetTokenValidator = [
     .notEmpty().withMessage('Reset token is required'),
 ];
 
-// User Update Validators
 
 exports.updateUserValidator = [
   body('name')

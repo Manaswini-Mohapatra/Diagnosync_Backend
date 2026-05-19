@@ -1,9 +1,5 @@
 const { verifyToken } = require('../utils/tokenUtils');
 const User = require('../models/User');
-
-// ── protect ────────────────────────────────────────────────────────────────
-// Verifies JWT and attaches the full user document to req.user.
-// Usage: router.get('/route', protect, handler)
 exports.protect = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
@@ -13,9 +9,7 @@ exports.protect = async (req, res, next) => {
     }
 
     const token = authHeader.split(' ')[1];
-    const decoded = verifyToken(token);   // throws if expired / invalid
-
-    // Attach full user document (excluding password)
+    const decoded = verifyToken(token);   
     const user = await User.findById(decoded.id).select('-password');
 
     if (!user) {
@@ -26,7 +20,7 @@ exports.protect = async (req, res, next) => {
       return res.status(401).json({ success: false, error: 'Account is deactivated' });
     }
 
-    req.user = user;   // used by controllers as req.user._id, req.user.role, etc.
+    req.user = user; 
     next();
   } catch (error) {
     if (error.name === 'TokenExpiredError') {
@@ -36,9 +30,6 @@ exports.protect = async (req, res, next) => {
   }
 };
 
-// ── restrictTo ─────────────────────────────────────────────────────────────
-// Role-based access control — must come AFTER protect.
-// Usage: router.get('/route', protect, restrictTo('admin', 'doctor'), handler)
 exports.restrictTo = (...roles) => {
   return (req, res, next) => {
     if (!roles.includes(req.user.role)) {

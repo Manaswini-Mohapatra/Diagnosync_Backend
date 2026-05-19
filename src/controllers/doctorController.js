@@ -6,7 +6,7 @@ const cloudinary = require('../config/cloudinary');
 const streamifier = require('streamifier');
 const { createSystemNotification } = require('./notificationController');
 
-// ── Shared helper: find doctor by Doctor _id OR User _id ──────────────────
+
 const findDoctorByAnyId = async (id) => {
   if (!mongoose.Types.ObjectId.isValid(id)) return null;
   let doctor = await Doctor.findById(id);
@@ -14,27 +14,23 @@ const findDoctorByAnyId = async (id) => {
   return doctor;
 };
 
-// ── Helper: format a doctor+user into the shape AppointmentBooking.jsx expects ─
+
 const formatDoctorForListing = (user, doctor) => ({
   id:         doctor._id,
   userId:     user._id,
-  name:       user.name,           // populated from User model
+  name:       user.name,          
   email:      user.email,
   phone:      user.phone,
-  // AppointmentBooking expects singular 'specialty' string
   specialty:  doctor.specialties?.join(', ') || 'General Physician',
   specialties: doctor.specialties || [],
-  // AppointmentBooking expects rating as string e.g. "4.8"
   rating:     doctor.ratings?.toFixed(1) || '0.0',
-  // AppointmentBooking expects reviews as string e.g. "120"
   reviews:    String(doctor.reviewCount || 0),
-  // AppointmentBooking expects fee as formatted string e.g. "$100"
   fee:        doctor.consultationFee ? `$${doctor.consultationFee}` : 'N/A',
   consultationFee: doctor.consultationFee,
   yearsOfExperience: doctor.yearsOfExperience,
   hospitalAffiliation: doctor.hospitalAffiliation,
-  licenseNumber: doctor.licenseNumber,   // ← was missing — caused "Not specified" on profile page
-  licenseState:  doctor.licenseState,    // ← was missing — caused "Not specified" on profile page
+  licenseNumber: doctor.licenseNumber,
+  licenseState:  doctor.licenseState,
   languages:  doctor.languages || [],
   qualifications: doctor.qualifications || [],
   bio:        doctor.bio,
@@ -44,8 +40,7 @@ const formatDoctorForListing = (user, doctor) => ({
   documents: doctor.documents || []
 });
 
-// ── GET /api/doctors ───────────────────────────────────────────────────────
-// AppointmentBooking Step 1 — patient picks a doctor from the list
+
 exports.getAllDoctors = async (req, res, next) => {
   try {
     const { specialty, search, page = 1, limit = 20 } = req.query;
@@ -59,7 +54,7 @@ exports.getAllDoctors = async (req, res, next) => {
     const doctors = await Doctor.find(doctorFilter)
       .skip((page - 1) * limit)
       .limit(Number(limit))
-      .sort({ ratings: -1 });   // highest rated first
+      .sort({ ratings: -1 });
 
     // Populate user names
     const userIds = doctors.map(d => d.userId);
@@ -75,9 +70,8 @@ exports.getAllDoctors = async (req, res, next) => {
     const userMap = {};
     users.forEach(u => { userMap[u._id.toString()] = u; });
 
-    // Combine + format for frontend
     const result = doctors
-      .filter(d => userMap[d.userId.toString()])   // skip if user deleted/inactive
+      .filter(d => userMap[d.userId.toString()])
       .map(d => formatDoctorForListing(userMap[d.userId.toString()], d));
 
     const total = await Doctor.countDocuments(doctorFilter);
@@ -94,14 +88,11 @@ exports.getAllDoctors = async (req, res, next) => {
   }
 };
 
-// ── GET /api/doctors/:id ───────────────────────────────────────────────────
-// View a specific doctor's public profile.
-// Accepts EITHER the Doctor document _id OR the User _id (both work).
+
 exports.getDoctorById = async (req, res, next) => {
   try {
     const id = req.params.id;
 
-    // Validate ObjectId — MongoDB IDs are exactly 24 hex characters
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({
         success: false,
@@ -128,9 +119,7 @@ exports.getDoctorById = async (req, res, next) => {
   }
 };
 
-// ── GET /api/doctors/:id/slots?date=YYYY-MM-DD ─────────────────────────────
-// AppointmentBooking Step 2 — get available time slots for a doctor on a date
-// Accepts EITHER the Doctor document _id OR the User _id.
+
 exports.getDoctorSlots = async (req, res, next) => {
   try {
     const id = req.params.id;
@@ -148,22 +137,17 @@ exports.getDoctorSlots = async (req, res, next) => {
 
     let slots = [];
     if (date) {
-      // 1. Check for date-specific slots (Override)
-      // date is usually 'YYYY-MM-DD'
       if (doctor.availableSlots?.[date]) {
         slots = doctor.availableSlots[date];
       } else {
-        // 2. Fallback to weekly schedule (Default)
         const dayName = new Date(date)
           .toLocaleDateString('en-US', { weekday: 'long' })
           .toLowerCase();
         slots = doctor.availableSlots?.[dayName] || [];
       }
 
-      // 3. Filter out ALREADY BOOKED slots for this day
-      // Query appointments for this doctor on this date that aren't cancelled
       const bookedAppointments = await Appointment.find({
-        doctorId: doctor.userId, // Controller uses userId for query consistency
+        doctorId: doctor.userId,
         date: new Date(date),
         status: { $ne: 'cancelled' }
       }).select('time');
@@ -183,8 +167,7 @@ exports.getDoctorSlots = async (req, res, next) => {
   }
 };
 
-// ── GET /api/doctors/me ────────────────────────────────────────────────────
-// DoctorProfilePage — fetch own full profile
+
 exports.getMyProfile = async (req, res, next) => {
   try {
     const doctor = await Doctor.findOne({ userId: req.user._id });
@@ -201,8 +184,7 @@ exports.getMyProfile = async (req, res, next) => {
   }
 };
 
-// ── PUT /api/doctors/me ────────────────────────────────────────────────────
-// DoctorRegistrationForm — save/update professional profile
+
 exports.updateMyProfile = async (req, res, next) => {
   try {
     const {
@@ -213,7 +195,6 @@ exports.updateMyProfile = async (req, res, next) => {
       bio, availableSlots
     } = req.body;
 
-    // Optional: Update base user fields
     if (fullName !== undefined || phone !== undefined) {
       const userUpdates = {};
       if (fullName !== undefined) userUpdates.name = fullName;
@@ -236,10 +217,8 @@ exports.updateMyProfile = async (req, res, next) => {
       ...(availableSlots     !== undefined && { availableSlots })
     };
 
-    // Find existing doctor to check verification status
     let doctor = await Doctor.findOne({ userId: req.user._id });
     
-    // If the profile was rejected, resetting it to pending so admin can re-verify
     if (doctor && doctor.verificationStatus === 'rejected') {
       updates.verificationStatus = 'pending';
     }
@@ -260,8 +239,7 @@ exports.updateMyProfile = async (req, res, next) => {
   }
 };
 
-// ── POST /api/doctors/me/documents ────────────────────────────────────────
-// DoctorRegistrationForm Step 3 — upload document to Cloudinary
+
 exports.addDocument = async (req, res, next) => {
   try {
     const { documentType, description } = req.body;
@@ -270,7 +248,6 @@ exports.addDocument = async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'File is required' });
     }
 
-    // Graceful fallback for development without Cloudinary keys
     if (!process.env.CLOUDINARY_API_KEY) {
       console.warn("CLOUDINARY_API_KEY is not set. Using mock upload.");
       const mockDocument = {
@@ -302,7 +279,6 @@ exports.addDocument = async (req, res, next) => {
       });
     }
 
-    // Pipeline buffer to Cloudinary
     const uploadStream = cloudinary.uploader.upload_stream(
       { 
         folder: 'diagnosync/doctor_docs',
@@ -349,8 +325,7 @@ exports.addDocument = async (req, res, next) => {
   }
 };
 
-// ── DELETE /api/doctors/me/documents/:docId ────────────────────────────────
-// DoctorRegistrationForm — remove a document
+
 exports.deleteDocument = async (req, res, next) => {
   try {
     const doctor = await Doctor.findOne({ userId: req.user._id });
@@ -358,7 +333,6 @@ exports.deleteDocument = async (req, res, next) => {
       return res.status(404).json({ success: false, error: 'Doctor profile not found' });
     }
 
-    // Find the specific document to delete from Cloudinary
     const docToDelete = doctor.documents.id(req.params.docId);
     if (docToDelete && docToDelete.publicId) {
       if (process.env.CLOUDINARY_API_KEY) {
@@ -366,7 +340,6 @@ exports.deleteDocument = async (req, res, next) => {
       }
     }
 
-    // Remove from MongoDB
     doctor.documents.pull({ _id: req.params.docId });
     if (doctor.verificationStatus === 'rejected') {
       doctor.verificationStatus = 'pending';
@@ -383,11 +356,10 @@ exports.deleteDocument = async (req, res, next) => {
   }
 };
 
-// ── PATCH /api/doctors/:id/verify (admin only) ────────────────────────────
-// Admin updates the verification status of a doctor
+
 exports.verifyDoctor = async (req, res, next) => {
   try {
-    const { status } = req.body; // expected: 'verified', 'rejected', or 'pending'
+    const { status } = req.body;
 
     if (!['verified', 'rejected', 'pending'].includes(status)) {
       return res.status(400).json({ success: false, error: 'Invalid status' });

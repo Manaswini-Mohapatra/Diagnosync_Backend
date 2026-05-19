@@ -2,11 +2,10 @@ const User = require('../models/User');
 const Patient = require('../models/Patient');
 const Doctor = require('../models/Doctor');
 
-// ── GET /api/users/me ──────────────────────────────────────────────────────
-// Returns full user profile including extended Patient or Doctor data
+
 exports.getMe = async (req, res, next) => {
   try {
-    const user = req.user;  // set by protect middleware
+    const user = req.user;  
     let profile = null;
 
     if (user.role === 'patient') {
@@ -34,13 +33,12 @@ exports.getMe = async (req, res, next) => {
   }
 };
 
-// ── PUT /api/users/me ──────────────────────────────────────────────────────
-// Update basic user fields (name, phone). Email changes require re-verification.
+
 exports.updateMe = async (req, res, next) => {
   try {
     const { name, phone } = req.body;
 
-    // Only allow safe fields — never let users update role/password here
+    
     const updates = {};
     if (name !== undefined) updates.name = name.trim();
     if (phone !== undefined) updates.phone = phone;
@@ -62,8 +60,7 @@ exports.updateMe = async (req, res, next) => {
   }
 };
 
-// ── DELETE /api/users/me ───────────────────────────────────────────────────
-// Soft-delete — deactivates the account instead of destroying data
+// deactivate account 
 exports.deactivateMe = async (req, res, next) => {
   try {
     await User.findByIdAndUpdate(req.user._id, {
@@ -80,7 +77,7 @@ exports.deactivateMe = async (req, res, next) => {
   }
 };
 
-// ── GET /api/users (admin only) ────────────────────────────────────────────
+// admin only
 exports.getAllUsers = async (req, res, next) => {
   try {
     const { role, page = 1, limit = 10 } = req.query;
@@ -107,7 +104,7 @@ exports.getAllUsers = async (req, res, next) => {
   }
 };
 
-// ── GET /api/users/stats (admin only) ──────────────────────────────────────
+//admin only
 exports.getUserStats = async (req, res, next) => {
   try {
     const totalUsers = await User.countDocuments();
@@ -134,7 +131,7 @@ exports.getUserStats = async (req, res, next) => {
   }
 };
 
-// ── PATCH /api/users/:id/status (admin only) ─────────────────────────────────
+// admin only
 exports.updateUserStatus = async (req, res, next) => {
   try {
     const { isActive } = req.body;

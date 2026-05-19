@@ -4,13 +4,13 @@ exports.analyzeSymptoms = async (req, res) => {
   try {
     const { text, patientId } = req.body;
 
-    // Extract symptoms from text
+
     const extractedSymptoms = nlpProcessor.extractSymptoms(text);
 
-    // Normalize symptoms
+
     const normalizedSymptoms = nlpProcessor.normalizeSymptoms(extractedSymptoms);
 
-    // Calculate severity
+
     const severity = nlpProcessor.calculateSeverity(normalizedSymptoms);
 
     res.json({

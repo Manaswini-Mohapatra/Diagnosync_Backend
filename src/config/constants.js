@@ -1,6 +1,3 @@
-// constants.js — Application-wide constants for DiagnoSync backend
-
-// ── HTTP Status Codes ─────────────────────────────────────────────────────────
 const HTTP_STATUS = {
   OK:                   200,
   CREATED:              201,
@@ -15,14 +12,12 @@ const HTTP_STATUS = {
   INTERNAL_SERVER:      500
 };
 
-// ── User Roles ────────────────────────────────────────────────────────────────
 const USER_ROLES = {
   PATIENT: 'patient',
   DOCTOR:  'doctor',
   ADMIN:   'admin'
 };
 
-// ── Appointment Statuses ──────────────────────────────────────────────────────
 const APPOINTMENT_STATUS = {
   PENDING:    'pending',
   CONFIRMED:  'confirmed',
@@ -31,7 +26,6 @@ const APPOINTMENT_STATUS = {
   NO_SHOW:    'no_show'
 };
 
-// ── Symptom Severity Levels ───────────────────────────────────────────────────
 const SYMPTOM_SEVERITY = {
   MILD:     'mild',
   MODERATE: 'moderate',
@@ -39,14 +33,12 @@ const SYMPTOM_SEVERITY = {
   CRITICAL: 'critical'
 };
 
-// ── Symptom Categories ────────────────────────────────────────────────────────
 const SYMPTOM_CATEGORIES = [
   'respiratory', 'cardiovascular', 'neurological', 'gastrointestinal',
   'musculoskeletal', 'dermatological', 'urological', 'endocrine',
   'mental_health', 'reproductive', 'sensory', 'general', 'other'
 ];
 
-// ── Notification Types ────────────────────────────────────────────────────────
 const NOTIFICATION_TYPES = {
   APPOINTMENT_REMINDER:  'appointment_reminder',
   PRESCRIPTION_READY:    'prescription_ready',
@@ -55,21 +47,20 @@ const NOTIFICATION_TYPES = {
   URGENT:                'urgent'
 };
 
-// ── Prescription Statuses ─────────────────────────────────────────────────────
 const PRESCRIPTION_STATUS = {
   ACTIVE:    'active',
   COMPLETED: 'completed',
   CANCELLED: 'cancelled'
 };
 
-// ── Pagination Defaults ───────────────────────────────────────────────────────
+
 const PAGINATION = {
   DEFAULT_PAGE:  1,
   DEFAULT_LIMIT: 10,
   MAX_LIMIT:     100
 };
 
-// ── JWT / Auth ────────────────────────────────────────────────────────────────
+
 const AUTH = {
   ACCESS_TOKEN_EXPIRY:  '15m',
   REFRESH_TOKEN_EXPIRY: '7d',
@@ -77,9 +68,8 @@ const AUTH = {
   BCRYPT_SALT_ROUNDS:   10
 };
 
-// ── Atlas Free Tier Safety ────────────────────────────────────────────────────
 const ATLAS = {
-  MAX_DOCUMENTS_PER_QUERY: 100,  // never pull unbounded result sets
+  MAX_DOCUMENTS_PER_QUERY: 100,  
   STORAGE_LIMIT_MB:        512
 };
 
