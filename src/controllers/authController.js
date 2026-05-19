@@ -143,18 +143,48 @@ exports.forgotPassword = async (req, res, next) => {
     // Generate a short-lived reset token (1 hour)
     const resetToken = generateOtpToken({ id: user._id.toString(), purpose: 'reset' }, '1h');
 
-    // Build the reset URL pointing to our frontend page
-    const resetUrl = `${process.env.CORS_ORIGIN}/password-reset?token=${resetToken}`;
+    // Build the reset URL pointing to our frontend page dynamically
+    let clientOrigin = req.get('origin');
+    if (!clientOrigin) {
+      const referer = req.get('referer');
+      if (referer) {
+        try {
+          const parsed = new URL(referer);
+          clientOrigin = `${parsed.protocol}//${parsed.host}`;
+        } catch (e) {
+          // fallback
+        }
+      }
+    }
+    if (!clientOrigin) {
+      clientOrigin = process.env.CORS_ORIGIN || 'http://localhost:5173';
+    }
+    const cleanOrigin = clientOrigin.replace(/\/$/, '');
+    const resetUrl = `${cleanOrigin}/password-reset?token=${resetToken}`;
+
+    // Log the token and link to console for easy testing/debugging
+    console.log('\n==================================================');
+    console.log(`🔑 PASSWORD RESET GENERATED FOR: ${email}`);
+    console.log(`Token: ${resetToken}`);
+    console.log(`Reset Link: ${resetUrl}`);
+    console.log('==================================================\n');
 
     // Non-blocking — send via Mailtrap (dev) or real SMTP (production)
     sendPasswordResetEmail(email, resetUrl).catch((err) =>
       console.error('Failed to send reset email:', err.message)
     );
 
-    res.status(200).json({
+    const responsePayload = {
       success: true,
       message: 'If that email exists, a reset link has been sent'
-    });
+    };
+
+    // For testing/development: return the token in the JSON response
+    if (process.env.NODE_ENV !== 'production') {
+      responsePayload.token = resetToken;
+    }
+
+    res.status(200).json(responsePayload);
   } catch (error) {
     next(error);
   }
